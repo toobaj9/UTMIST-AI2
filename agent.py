@@ -39,6 +39,8 @@ import skvideo
 import skvideo.io
 from IPython.display import Video
 
+from stable_baselines3.common.monitor import Monitor
+
 
 # ## Agents
 
@@ -362,6 +364,11 @@ class SaveHandler():
 
         return False
 
+    def get_random_model_path(self) -> str:
+        if len(self.history) == 0:
+            return None
+        return random.choice(self.history)
+
     def get_latest_model_path(self) -> str:
         if len(self.history) == 0:
             return None
@@ -370,6 +377,7 @@ class SaveHandler():
 class SelfPlaySelectionMode(Enum):
     LATEST = 0
     ELO = 1
+    RANDOM = 2
 
 class SelfPlayHandler():
     """Handles self-play."""
@@ -400,6 +408,22 @@ class SelfPlayHandler():
 
         elif self.mode == SelfPlaySelectionMode.ELO:
             raise NotImplementedError
+    
+        elif self.mode == SelfPlaySelectionMode.RANDOM:
+            chosen_path = self.save_handler.get_random_model_path()
+            if chosen_path:
+                try:
+                    opponent = self.agent_partial(file_path=chosen_path)
+                    opponent.get_env_info(self.env)
+                    return opponent
+                except FileNotFoundError:
+                    print(f"Warning: Self-play file {chosen_path} not found. Defaulting to constant agent.")
+                    opponent = ConstantAgent()
+                    opponent.get_env_info(self.env)
+            else:
+                print("Warning: No self-play model saved. Defaulting to constant agent.")
+                opponent = ConstantAgent()
+                opponent.get_env_info(self.env)
 
         return opponent
 
@@ -502,7 +526,7 @@ class SelfPlayWarehouseBrawl(gymnasium.Env):
 
         self.best_model = None
 
-        self.raw_env = WarehouseBrawl(resolution=resolution)
+        self.raw_env = WarehouseBrawl(resolution=resolution, train_mode=True)
         self.action_space = self.raw_env.action_space
         self.act_helper = self.raw_env.act_helper
         self.observation_space = self.raw_env.observation_space
@@ -578,11 +602,13 @@ def run_match(agent_1: Agent | partial,
               video_path: Optional[str]=None,
               agent_1_name: Optional[str]=None,
               agent_2_name: Optional[str]=None,
+              mode=RenderMode.RGB_ARRAY,
               resolution = CameraResolution.LOW,
-              reward_manager: Optional[RewardManager]=None
+              reward_manager: Optional[RewardManager]=None,
+              train_mode=False
               ) -> MatchStats:
     # Initialize env
-    env = WarehouseBrawl(resolution=resolution)
+    env = WarehouseBrawl(resolution=resolution, train_mode=train_mode)
     observations, infos = env.reset()
     obs_1 = observations[0]
     obs_2 = observations[1]
@@ -745,13 +771,6 @@ class SubmittedAgent(Agent):
         self.model.set_env(env)
         self.model.learn(total_timesteps=total_timesteps, log_interval=log_interval)
 
-# Create my agent
-# Use SubmittedAgent(file_path='data.zip')
-my_agent = SubmittedAgent()
-my_agent2 = SubmittedAgent()
-#my_agent = RecurrentPPOAgent('recurrent')
-run_match(my_agent, my_agent2, video_path='vis.mp4', resolution=CameraResolution.LOW)
-Video('vis.mp4', embed=True, width=800)
 
 
 # # Training
@@ -1006,10 +1025,10 @@ class SB3Agent(Agent):
 
     def _initialize(self) -> None:
         if self.file_path is None:
-            self.model = self.sb3_class("MlpPolicy", self.env, verbose=0)
+            self.model = self.sb3_class("MlpPolicy", self.env, verbose=0, n_steps=30*90*3, batch_size=128, ent_coef=0.01)
             del self.env
         else:
-            self.model = self.sb3_class.load(self.file_path, n_steps=30*90*3, batch_size=128)
+            self.model = self.sb3_class.load(self.file_path)
 
     def _gdown(self) -> str:
         # Call gdown to your link
@@ -1053,10 +1072,15 @@ class RecurrentPPOAgent(Agent):
 
     def _initialize(self) -> None:
         if self.file_path is None:
-            self.model = RecurrentPPO("MlpLstmPolicy", self.env, verbose=0)
+            self.model = RecurrentPPO("MlpLstmPolicy",
+                                      self.env,
+                                      verbose=0,
+                                      n_steps=30*90*3,
+                                      batch_size=16,
+                                      ent_coef=0.05)
             del self.env
         else:
-            self.model = RecurrentPPO.load(self.file_path, n_steps=30*90*3, batch_size=128)
+            self.model = RecurrentPPO.load(self.file_path)
 
     def reset(self) -> None:
         self.episode_starts = True
@@ -1069,7 +1093,7 @@ class RecurrentPPOAgent(Agent):
     def save(self, file_path: str) -> None:
         self.model.save(file_path)
 
-    def learn(self, env, total_timesteps, log_interval: int = 16, verbose=0):
+    def learn(self, env, total_timesteps, log_interval: int = 2, verbose=0):
         self.model.set_env(env)
         self.model.verbose = verbose
         self.model.learn(total_timesteps=total_timesteps, log_interval=log_interval)
@@ -1109,7 +1133,9 @@ def plot_results(log_folder, title="Learning Curve"):
     plt.xlabel("Number of Timesteps")
     plt.ylabel("Rewards")
     plt.title(title + " Smoothed")
-    plt.show()
+
+    # save to file
+    plt.savefig(log_folder + title + ".png")
 
 def train(agent: Agent,
           reward_manager: RewardManager,
@@ -1132,16 +1158,14 @@ def train(agent: Agent,
         os.makedirs(log_dir, exist_ok=True)
 
         # Logs will be saved in log_dir/monitor.csv
-        actual_env = Monitor(env, log_dir)
-        env = actual_env.env
-    else:
-        actual_env = env
+        env = Monitor(env, log_dir)
 
+    base_env = env.unwrapped if hasattr(env, 'unwrapped') else env
     try:
-        agent.get_env_info(actual_env)
-        env.on_training_start()
+        agent.get_env_info(base_env)
+        base_env.on_training_start()
         agent.learn(env, total_timesteps=train_timesteps, verbose=1)
-        env.on_training_end()
+        base_env.on_training_end()
     except KeyboardInterrupt:
         pass
 
@@ -1308,6 +1332,19 @@ def head_to_opponent(
 
     return reward
 
+def holding_more_than_3_keys(
+    env: WarehouseBrawl,
+) -> float:
+
+    # Get player object from the environment
+    player: Player = env.objects["player"]
+
+    # Apply penalty if the player is holding more than 3 keys
+    a = player.cur_action
+    if (a > 0.5).sum() > 3:
+        return env.dt
+    return 0
+
 def on_win_reward(env: WarehouseBrawl, agent: str) -> float:
     if agent == 'player':
         return 1.0
@@ -1331,138 +1368,65 @@ def on_combo_reward(env: WarehouseBrawl, agent: str) -> float:
 # 
 # Run this cell to run training. Be sure to set your agent under the `my_agent` variable, and modify the training using the `reward_manager`, `selfplay_handler`, `save_handler`, and `opponent_cfg`.
 
-# In[ ]:
+def gen_reward_manager():
+        reward_functions = {
+            #'target_height_reward': RewTerm(func=base_height_l2, weight=0.0, params={'target_height': -4, 'obj_name': 'player'}),
+            'danger_zone_reward': RewTerm(func=danger_zone_reward, weight=0.5),
+            'damage_interaction_reward': RewTerm(func=damage_interaction_reward, weight=1.0),
+            #'head_to_middle_reward': RewTerm(func=head_to_middle_reward, weight=0.01),
+            #'head_to_opponent': RewTerm(func=head_to_opponent, weight=0.05),
+            'penalize_attack_reward': RewTerm(func=in_state_reward, weight=-0.04, params={'desired_state': AttackState}),
+            'holding_more_than_3_keys': RewTerm(func=holding_more_than_3_keys, weight=-0.01),
+            #'taunt_reward': RewTerm(func=in_state_reward, weight=0.2, params={'desired_state': TauntState}),
+        }
+        signal_subscriptions = {
+            'on_win_reward': ('win_signal', RewTerm(func=on_win_reward, weight=50)),
+            'on_knockout_reward': ('knockout_signal', RewTerm(func=on_knockout_reward, weight=8)),
+            'on_combo_reward': ('hit_during_stun', RewTerm(func=on_combo_reward, weight=5)),
+        }
+        return RewardManager(reward_functions, signal_subscriptions)
 
+if __name__ == '__main__':
+    # Create agent
+    # Start here if you want to train from scratch
+    my_agent = RecurrentPPOAgent()
+    # Start here if you want to train from a specific timestep
+    #my_agent = RecurrentPPOAgent(file_path='checkpoints/experiment_3/rl_model_120006_steps.zip')
 
-# Create agent
-# Start here if you want to train from scratch
-my_agent = RecurrentPPOAgent()
-# Start here if you want to train from a specific timestep
-#my_agent = RecurrentPPOAgent(file_path='checkpoints/experiment_4/rl_model_176074_steps.zip')
+    # Reward manager
+    
 
-# Reward manager
-reward_functions = {
-    #'target_height_reward': RewTerm(func=base_height_l2, weight=0.0, params={'target_height': -4, 'obj_name': 'player'}),
-    'danger_zone_reward': RewTerm(func=danger_zone_reward, weight=2.0),
-    'damage_interaction_reward': RewTerm(func=damage_interaction_reward, weight=5.0),
-    #'head_to_middle_reward': RewTerm(func=head_to_middle_reward, weight=0.01),
-    #'head_to_opponent': RewTerm(func=head_to_opponent, weight=0.05),
-    'penalize_attack_reward': RewTerm(func=in_state_reward, weight=-1, params={'desired_state': TauntState}),
-    'taunt_reward': RewTerm(func=in_state_reward, weight=0.2, params={'desired_state': TauntState}),
-}
-signal_subscriptions = {
-    'on_win_reward': ('win_signal', RewTerm(func=on_win_reward, weight=50)),
-    'on_knockout_reward': ('knockout_signal', RewTerm(func=on_knockout_reward, weight=8)),
-    'on_combo_reward': ('hit_during_stun', RewTerm(func=on_combo_reward, weight=5)),
-}
-reward_manager = RewardManager(reward_functions, signal_subscriptions)
+    reward_manager = gen_reward_manager()
+    # Self-play settings
+    selfplay_handler = SelfPlayHandler(
+        partial(RecurrentPPOAgent), # Agent class and its keyword arguments
+        mode=SelfPlaySelectionMode.RANDOM # Self-play selection mode
+    )
 
-# Self-play settings
-selfplay_handler = SelfPlayHandler(
-    partial(RecurrentPPOAgent), # Agent class and its keyword arguments
-    mode=SelfPlaySelectionMode.LATEST # Self-play selection mode
-)
+    # Save settings
+    save_handler = SaveHandler(
+        agent=my_agent, # Agent to save
+        save_freq=20_000, # Save frequency
+        max_saved=40, # Maximum number of saved models
+        save_path='checkpoints', # Save path
+        run_name='experiment_5',
+        mode=SaveHandlerMode.FORCE # Save mode, FORCE or RESUME
+    )
 
-# Save settings
-save_handler = SaveHandler(
-    agent=my_agent, # Agent to save
-    save_freq=4_000, # Save frequency
-    max_saved=10, # Maximum number of saved models
-    save_path='checkpoints', # Save path
-    run_name='experiment_1',
-    mode=SaveHandlerMode.FORCE # Save mode, FORCE or RESUME
-)
+    # Opponent settings
+    opponent_specification = {
+                    'self_play': (8, selfplay_handler),
+                    'constant_agent': (0.5, partial(ConstantAgent)),
+                    'based_agent': (1.5, partial(BasedAgent)),
+                }
+    opponent_cfg = OpponentsCfg(opponents=opponent_specification)
 
-# Opponent settings
-opponent_specification = {
-                'self_play': (8, selfplay_handler),
-                'constant_agent': (0.2, partial(ConstantAgent)),
-                'based_agent': (2, partial(BasedAgent)),
-            }
-opponent_cfg = OpponentsCfg(opponents=opponent_specification)
-
-train(my_agent,
-      reward_manager,
-      save_handler,
-      opponent_cfg,
-      CameraResolution.LOW,
-      train_timesteps=1_000_000,
-      train_logging=TrainLogging.PLOT
-)
-
-
-# # Evaluation / Inference
-# 
-# Test your agents here!
-
-# In[ ]:
-
-
-num_steps1 = 26169
-num_steps2 = 26169
-my_agent = RecurrentPPOAgent(file_path=f'checkpoints/experiment_1/rl_model_{num_steps1}_steps.zip')
-opponent = RecurrentPPOAgent(file_path=f'checkpoints/experiment_1/rl_model_{num_steps2}_steps.zip')
-opponent=BasedAgent()
-match_time = 90
-run_match(my_agent,
-          agent_2=opponent,
-          video_path='vis.mp4',
-          agent_1_name='Agent 1',
-          agent_2_name='Agent 2',
-          resolution=CameraResolution.LOW,
-          reward_manager=reward_manager,
-          max_timesteps=30 * match_time
-          )
-
-Video('vis.mp4', embed=True, width=800)
-
-
-# In[ ]:
-
-
-# Custom ClockworkAgent
-action_sheet = [
-    (20, ['a']),
-    (15, []),
-    (10, ['s', 'j']),
-    (20, []),
-    (10, ['w', 'k']),
-    (20, []),
-    #(10, ['w', 'j']),
-    (10, ['space']),
-    (1, ['s', 'j']),
-    (20, ['a']),
-    (3, ['a', 'j']),
-    (30, []),
-    (7, ['d']),
-    (1, ['a']),
-    (4, ['a','l']),
-    (1, ['a']),
-    (4, ['a','l']),
-    (1, ['a']),
-    (4, ['a','k']),
-    (20, []),
-    (4, ['d','k']),
-    (20, []),
-    (15, ['space']),
-    (5, []),
-    (15, ['space']),
-    (5, []),
-    (15, ['space']),
-    (5, []),
-    (15, ['space']),
-    (5, []),
-    (15, ['space']),
-    (5, []),
-]
-agent1 = ClockworkAgent(action_sheet=action_sheet)
-agent2 = ClockworkAgent(action_sheet=action_sheet)
-run_match(agent1,
-          agent_2=agent2,
-          max_timesteps=40,
-          video_path='vis.mp4',
-          resolution=CameraResolution.LOW
-          )
-
-Video('vis.mp4', embed=True, width=800)
+    train(my_agent,
+        reward_manager,
+        save_handler,
+        opponent_cfg,
+        CameraResolution.LOW,
+        train_timesteps=1_000_000_000,
+        train_logging=TrainLogging.PLOT
+    )
 

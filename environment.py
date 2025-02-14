@@ -337,7 +337,7 @@ class KeyIconPanel():
             )
             # Add padding for the icon.
             icon_rect = cell_rect.inflate(-2, -2)
-            pressed = bool(input_vector[idx])
+            pressed = input_vector[idx] > 0.5
             self.draw_key_icon(canvas, icon_rect, key, pressed, font)
 
         # Row 2: Spacebar (only one icon)
@@ -349,7 +349,7 @@ class KeyIconPanel():
         )
         # Center the spacebar icon in its cell.
         icon_rect = cell_rect.inflate(-2, -2)
-        pressed = bool(input_vector[4])
+        pressed = input_vector[4] > 0.5
         self.draw_key_icon(canvas, icon_rect, "Space", pressed, font)
 
         # Row 3: GHJKL (last 5 keys)
@@ -364,7 +364,7 @@ class KeyIconPanel():
                 row_height
             )
             icon_rect = cell_rect.inflate(-2, -2)
-            pressed = bool(input_vector[5 + idx])
+            pressed = input_vector[5 + idx] > 0.5
             self.draw_key_icon(canvas, icon_rect, key, pressed, font)
 
 
@@ -770,7 +770,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
     BRAWL_TO_UNITS = 1.024 / 320  # Conversion factor
 
-    def __init__(self, mode: RenderMode=RenderMode.RGB_ARRAY, resolution: CameraResolution=CameraResolution.LOW):
+    def __init__(self, mode: RenderMode=RenderMode.RGB_ARRAY, resolution: CameraResolution=CameraResolution.LOW, train_mode: bool = False):
         super(WarehouseBrawl, self).__init__()
 
         self.stage_width_tiles: float = 29.8
@@ -778,6 +778,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
         self.mode = mode
         self.resolution = resolution
+        self.train_mode = train_mode
 
         self.agents = [0, 1] # Agent 0, agent 1
         self.logger = ['', '']
@@ -954,6 +955,10 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
                 self.terminated = True
                 self.win_signal.emit(agent='player' if agent == 1 else 'opponent')
 
+        # Pre-process player step
+        for agent in self.agents:
+            player = self.players[agent]
+            player.pre_process()
 
         # Process physics info
         for obj_name, obj in self.objects.items():
@@ -1095,8 +1100,14 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         # Players
         # randomize start pos, binary
         p1_right = bool(random.getrandbits(1))
-        p1_start_pos = [5, 0] if p1_right else [-5, 0]
-        p2_start_pos = [-5, 0] if p1_right else [5, 0]
+
+        # random between -5 and 5 
+        if self.train_mode:
+            p1_start_pos = [random.uniform(-5, 5), 0]
+            p2_start_pos = [random.uniform(-5, 5), 0]
+        else:
+            p1_start_pos = [5, 0] if p1_right else [-5, 0]
+            p2_start_pos = [-5, 0] if p1_right else [5, 0]
 
         p1 = Player(self, 0, start_position=p1_start_pos, color=[0, 0, 255, 255])
         p2 = Player(self, 1, start_position=p2_start_pos, color=[0, 255, 0, 255])
@@ -1355,6 +1366,7 @@ class GroundState(PlayerObjectState):
         return True
 
     def reset(self, old) -> None:
+        super().reset(old)
         if hasattr(old, 'dash_timer'):
             self.dash_timer = old.dash_timer
         else:
@@ -1655,6 +1667,7 @@ class AirTurnaroundState(InAirState):
 
     def enter(self) -> None:
         self.turnaround_timer = self.p.turnaround_time
+        self.p.body.velocity = pymunk.Vec2d(self.p.body.velocity.x / 3, self.p.body.velocity.y)
         self.is_base = False
 
     def physics_process(self, dt: float) -> PlayerObjectState:
@@ -2279,9 +2292,6 @@ class Power():
                                 hit_agent.apply_damage(damage_to_deal, self.stun_time,
                                                     (hit_vector[0] * (force_magnitude / current_cast.cast_data.attackFrames),
                                                     hit_vector[1] * (force_magnitude / current_cast.cast_data.attackFrames)))
-                            else:
-                                hit_agent.apply_damage(damage_to_deal, self.stun_time,
-                                                    (hit_vector[0] * force_magnitude, hit_vector[1] * force_magnitude))
                             hit_agents.append(hit_agent)
                         if hit_agent not in self.agents_in_move:
                             if move_manager.hit_agent is None:
@@ -2361,6 +2371,9 @@ class AttackState(PlayerObjectState):
         # get random number from 1 to 12
         self.seed = random.randint(1, 12)
         # Optionally, play a dash sound or animation here.
+    
+    def exit(self) -> None:
+        self.p.set_hitboxes_to_draw()
 
     def physics_process(self, dt: float) -> PlayerObjectState:
         new_state = super().physics_process(dt)
@@ -2713,6 +2726,8 @@ class Player(GameObject):
         self.damage_velocity = (0, 0)
         self.target_vel = (0, 0)
 
+        self.cur_action = np.zeros(10)
+
         self.hitboxes_to_draw = []
         self.points_to_draw = []
 
@@ -2794,7 +2809,7 @@ class Player(GameObject):
         state_index = self.state_mapping.get(current_state_name, 0)
         obs.append(float(state_index))
 
-        obs.append(float(self.state.jumps_left) if hasattr(self.state, 'recoveries_left') else 0.0)
+        obs.append(float(self.state.recoveries_left) if hasattr(self.state, 'recoveries_left') else 0.0)
 
         obs.append(float(self.state.dodge_timer) if hasattr(self.state, 'dodge_timer') else 0.0)
 
@@ -2839,15 +2854,14 @@ class Player(GameObject):
             url = "https://drive.google.com/file/d/1F2MJQ5enUPVtyi3s410PUuv8LiWr8qCz/view?usp=sharing"
             gdown.download(url, output=data_path, fuzzy=True)
 
-
         # check if directory
-        get_ipython().system('unzip -q "/content/$data_path"')
         print("Downloaded!")
 
         self.assets_loaded = True
 
     def is_on_floor(self) -> bool:
-        return self.shape.cache_bb().intersects(self.env.objects['ground'].shape.cache_bb())
+        old_cond = (abs(self.body.position.y - 1.540) < 0.03 and abs(self.body.position.x) < 5.77)
+        return self.shape.cache_bb().intersects(self.env.objects['ground'].shape.cache_bb()) or old_cond
         #return abs(self.body.position.y - 1.540) < 0.03 and abs(self.body.position.x) < 5.77
 
     def set_gravity_disabled(self, disabled:bool) -> None:
@@ -3043,9 +3057,12 @@ class Player(GameObject):
             move_type = m_state_to_move[cms]
             #print(move_type)
         return move_type
+    
+    def pre_process(self) -> None:
+        self.damage_taken_this_frame = 0
 
     def process(self, action: np.ndarray) -> None:
-        self.damage_taken_this_frame = 0
+        self.cur_action = action
         if not hasattr(self, 'opponent'):
             self.opponent = self.env.players[1-self.agent_id]
         #if self.env.steps == 2: self.animation_sprite_2d.play('altroll')
