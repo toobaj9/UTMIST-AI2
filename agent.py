@@ -314,7 +314,7 @@ class SaveHandler():
                 self.history = [f for f in self.history if f.endswith('.zip')]
                 if len(self.history) != 0:
                     self.history.sort(key=lambda x: int(os.path.basename(x).split('_')[-2].split('.')[0]))
-                    self.history = self.history[-max_saved:]
+                    if max_saved != -1: self.history = self.history[-max_saved:]
                     print(f'Best model is {self.history[-1]}')
                 else:
                     print(f'No models found in {exp_path}.')
@@ -349,7 +349,7 @@ class SaveHandler():
         model_path = self._checkpoint_path('zip')
         self.agent.save(model_path)
         self.history.append(model_path)
-        if len(self.history) > self.max_saved:
+        if self.max_saved != -1 and len(self.history) > self.max_saved:
             os.remove(self.history.pop(0))
 
     def process(self) -> bool:
@@ -374,58 +374,58 @@ class SaveHandler():
             return None
         return self.history[-1]
 
-class SelfPlaySelectionMode(Enum):
-    LATEST = 0
-    ELO = 1
-    RANDOM = 2
-
-class SelfPlayHandler():
+class SelfPlayHandler(ABC):
     """Handles self-play."""
 
-    def __init__(self, agent_partial: partial, mode: SelfPlaySelectionMode=SelfPlaySelectionMode.LATEST):
+    def __init__(self, agent_partial: partial):
         self.agent_partial = agent_partial
-        self.mode = mode
+    
+    def get_model_from_path(self, path) -> Agent:
+        if path:
+            try:
+                opponent = self.agent_partial(file_path=path)
+            except FileNotFoundError:
+                print(f"Warning: Self-play file {path} not found. Defaulting to constant agent.")
+                opponent = ConstantAgent()
+        else:
+            print("Warning: No self-play model saved. Defaulting to constant agent.")
+            opponent = ConstantAgent()
+        opponent.get_env_info(self.env)
+        return opponent
 
+    @abstractmethod
+    def get_opponent(self) -> Agent:
+        pass
+
+
+class SelfPlayLatest(SelfPlayHandler):
+    def __init__(self, agent_partial: partial):
+        super().__init__(agent_partial)
+    
     def get_opponent(self) -> Agent:
         assert self.save_handler is not None, "Save handler must be specified for self-play"
+        chosen_path = self.save_handler.get_latest_model_path()
+        return self.get_model_from_path(chosen_path)
 
-        if self.mode == SelfPlaySelectionMode.LATEST:
-            # Get the best model from the save handler
-            self.best_model = self.save_handler.get_latest_model_path()
-            if self.best_model:
-                try:
-                    opponent = self.agent_partial(file_path=self.best_model)
-                    opponent.get_env_info(self.env)
-                    return opponent
-                except FileNotFoundError:
-                    print(f"Warning: Self-play file {self.best_model} not found. Defaulting to constant agent.")
-                    opponent = ConstantAgent()
-                    opponent.get_env_info(self.env)
-            else:
-                print("Warning: No self-play model saved. Defaulting to constant agent.")
-                opponent = ConstantAgent()
-                opponent.get_env_info(self.env)
-
-        elif self.mode == SelfPlaySelectionMode.ELO:
-            raise NotImplementedError
+class SelfPlayDynamic(SelfPlayHandler):
+    def __init__(self, agent_partial: partial):
+        super().__init__(agent_partial)
     
-        elif self.mode == SelfPlaySelectionMode.RANDOM:
-            chosen_path = self.save_handler.get_random_model_path()
-            if chosen_path:
-                try:
-                    opponent = self.agent_partial(file_path=chosen_path)
-                    opponent.get_env_info(self.env)
-                    return opponent
-                except FileNotFoundError:
-                    print(f"Warning: Self-play file {chosen_path} not found. Defaulting to constant agent.")
-                    opponent = ConstantAgent()
-                    opponent.get_env_info(self.env)
-            else:
-                print("Warning: No self-play model saved. Defaulting to constant agent.")
-                opponent = ConstantAgent()
-                opponent.get_env_info(self.env)
+    @NotImplementedError
+    def get_opponent(self) -> Agent:
+        assert self.save_handler is not None, "Save handler must be specified for self-play"
+        assert self.save_handler.max_saved == -1, "Save handler must have max_saved=-1 for dynamic self-play (save all past opponents)"
+        chosen_path = self.save_handler.get_random_model_path()
+        return self.get_model_from_path(chosen_path)
 
-        return opponent
+class SelfPlayRandom(SelfPlayHandler):
+    def __init__(self, agent_partial: partial):
+        super().__init__(agent_partial)
+    
+    def get_opponent(self) -> Agent:
+        assert self.save_handler is not None, "Save handler must be specified for self-play"
+        chosen_path = self.save_handler.get_random_model_path()
+        return self.get_model_from_path(chosen_path)
 
 @dataclass
 class OpponentsCfg():
@@ -516,15 +516,14 @@ class SelfPlayWarehouseBrawl(gymnasium.Env):
         self.opponent_cfg.validate_probabilities()
 
         # Check if using self-play
-        if (selfplay_data := self.opponent_cfg.opponents.get('self_play')) is not None:
-            assert self.save_handler is not None, "Save handler must be specified for self-play"
+        for key, value in self.opponent_cfg.opponents.items():
+            if isinstance(value[1], SelfPlayHandler):
+                assert self.save_handler is not None, "Save handler must be specified for self-play"
 
-            # Give SelfPlayHandler references
-            selfplay_handler: SelfPlayHandler = selfplay_data[1]
-            selfplay_handler.save_handler = self.save_handler
-            selfplay_handler.env = self
-
-        self.best_model = None
+                # Give SelfPlayHandler references
+                selfplay_handler: SelfPlayHandler = value[1]
+                selfplay_handler.save_handler = self.save_handler
+                selfplay_handler.env = self       
 
         self.raw_env = WarehouseBrawl(resolution=resolution, train_mode=True)
         self.action_space = self.raw_env.action_space
@@ -1072,12 +1071,22 @@ class RecurrentPPOAgent(Agent):
 
     def _initialize(self) -> None:
         if self.file_path is None:
+            policy_kwargs = {
+                'activation_fn': nn.ReLU,
+                'lstm_hidden_size': 512,
+                'net_arch': [dict(pi=[32, 32], vf=[32, 32])],
+                'shared_lstm': True,
+                'enable_critic_lstm': False,
+                'share_features_extractor': True,
+
+            }
             self.model = RecurrentPPO("MlpLstmPolicy",
                                       self.env,
                                       verbose=0,
-                                      n_steps=30*90*3,
+                                      n_steps=30*90*20,
                                       batch_size=16,
-                                      ent_coef=0.05)
+                                      ent_coef=0.05,
+                                      policy_kwargs=policy_kwargs)
             del self.env
         else:
             self.model = RecurrentPPO.load(self.file_path)
@@ -1398,18 +1407,17 @@ if __name__ == '__main__':
 
     reward_manager = gen_reward_manager()
     # Self-play settings
-    selfplay_handler = SelfPlayHandler(
+    selfplay_handler = SelfPlayRandom(
         partial(RecurrentPPOAgent), # Agent class and its keyword arguments
-        mode=SelfPlaySelectionMode.RANDOM # Self-play selection mode
     )
 
     # Save settings
     save_handler = SaveHandler(
         agent=my_agent, # Agent to save
-        save_freq=20_000, # Save frequency
+        save_freq=100_000, # Save frequency
         max_saved=40, # Maximum number of saved models
         save_path='checkpoints', # Save path
-        run_name='experiment_5',
+        run_name='experiment_6',
         mode=SaveHandlerMode.FORCE # Save mode, FORCE or RESUME
     )
 

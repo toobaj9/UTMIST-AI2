@@ -850,7 +850,11 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         return self.obs_helper.get_as_box()
 
     def add_player_obs(self, obs_helper, name: str='player') -> None:
+        # Note: Some low and high bounds are off here. To ensure everyone's code
+        # still works, we are not modifying them, but will elaborate in comments.
+        # Pos: Unnormalized, goes from [-18, -7], [18, 7], in game units
         obs_helper.add_section([-1, -1], [1, 1], f"{name}_pos")
+        # Vel: Unnormalized, goes from [-10, -10], [10, 10] in game units
         obs_helper.add_section([-1, -1], [1, 1], f"{name}_vel")
         obs_helper.add_section([0], [1], f"{name}_facing")
         obs_helper.add_section([0], [1], f"{name}_grounded")
@@ -858,7 +862,12 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         obs_helper.add_section([0], [2], f"{name}_jumps_left")
         obs_helper.add_section([0], [12], f"{name}_state")
         obs_helper.add_section([0], [1], f"{name}_recoveries_left")
+        # Dodge timer: Unnormalized, goes from [0], [82] in frames.
+        # Represents the time remaining until can dodge again
         obs_helper.add_section([0], [1], f"{name}_dodge_timer")
+        # Stun frames: Unnormalized, goes from [0], [80] in frames
+        # Represents the time remaining until the player transitions
+        # out of StunState.
         obs_helper.add_section([0], [1], f"{name}_stun_frames")
         obs_helper.add_section([0], [1], f"{name}_damage")
         obs_helper.add_section([0], [3], f"{name}_stocks")
@@ -946,6 +955,11 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
                 continue
             else:
                 obj.process()
+            
+        # Pre-process player step
+        for agent in self.agents:
+            player = self.players[agent]
+            player.pre_process()
 
         # Process player step
         for agent in self.agents:
@@ -955,10 +969,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
                 self.terminated = True
                 self.win_signal.emit(agent='player' if agent == 1 else 'opponent')
 
-        # Pre-process player step
-        for agent in self.agents:
-            player = self.players[agent]
-            player.pre_process()
+        
 
         # Process physics info
         for obj_name, obj in self.objects.items():
@@ -1487,10 +1498,14 @@ class InAirState(PlayerObjectState):
                 if self.recoveries_left > 0:
                     self.recoveries_left -= 1
                     attack_state = self.p.states['attack']
+                    attack_state.jumps_left = self.jumps_left
+                    attack_state.recoveries_left = self.recoveries_left
                     attack_state.give_move(move_type)
                     return attack_state
             else:
                 attack_state = self.p.states['attack']
+                attack_state.jumps_left = self.jumps_left
+                attack_state.recoveries_left = self.recoveries_left
                 attack_state.give_move(move_type)
                 return attack_state
 
@@ -1645,7 +1660,7 @@ class TurnaroundState(GroundState):
             return self.p.states['in_air']
 
         if self.p.input.key_status["l"].just_pressed:
-                return self.p.states['backdash']
+            return self.p.states['backdash']
 
 
         self.turnaround_timer = max(0, self.turnaround_timer-1)
@@ -1709,6 +1724,8 @@ class StunState(InAirState):
 
     def physics_process(self, dt: float) -> PlayerObjectState:
         new_state = super().physics_process(dt)
+        if new_state is not None:
+            return new_state
 
         self.stun_frames = max(0, self.stun_frames-1)
 
@@ -1784,8 +1801,6 @@ class DashState(GroundState):
         new_state = super().physics_process(dt)
         if new_state is not None:
             return new_state
-
-        direction: float = self.p.input.raw_horizontal
 
         # Apply a strong forward velocity in the facing direction.
         self.p.body.velocity = pymunk.Vec2d(int(self.p.facing) * self.p.dash_speed, self.p.body.velocity.y)
