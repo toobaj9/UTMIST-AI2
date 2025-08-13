@@ -1217,7 +1217,7 @@ class Ground(GameObject):
 
 class Stage(GameObject):
     def __init__(self, space, x, y, width, height, color=(150, 150, 150, 255)):
-        self.body = pymunk.Body(x, y, body_type=pymunk.Body.STATIC)
+        self.body = pymunk.Body(x, y, body_type=pymunk.Body.KINEMATIC)
         self.shape = pymunk.Poly.create_box(self.body, (width, height))
         self.shape.body.position = (x + width // 2, y)
         self.shape.friction = 0.7
