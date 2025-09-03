@@ -624,9 +624,12 @@ class Camera():
             self.key_panel_1.draw(self, env.cur_action[0])
             self.key_panel_2.draw(self, env.cur_action[1])
 
-        img = np.transpose(
-                np.array(pygame.surfarray.pixels3d(self.canvas)), axes=(1, 0, 2)
-            )
+        # img = np.transpose(
+        #         np.array(pygame.surfarray.pixels3d(self.canvas)), axes=(1, 0, 2)
+        #     )
+
+        img = np.array(pygame.surfarray.pixels3d(self.canvas)).swapaxes(0, 1)[:, ::-1, :]
+        img = np.rot90(img, k=1)  
 
         if mode == RenderMode.PYGAME_WINDOW:
             pygame.display.flip()
@@ -770,7 +773,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
     BRAWL_TO_UNITS = 1.024 / 320  # Conversion factor
 
-    def __init__(self, mode: RenderMode=RenderMode.RGB_ARRAY, resolution: CameraResolution=CameraResolution.LOW, train_mode: bool = False):
+    def __init__(self, mode: RenderMode=RenderMode.RGB_ARRAY, resolution: CameraResolution=CameraResolution.MEDIUM, train_mode: bool = False):
         super(WarehouseBrawl, self).__init__()
 
         self.stage_width_tiles: float = 29.8

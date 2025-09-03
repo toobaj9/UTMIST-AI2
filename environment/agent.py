@@ -697,7 +697,6 @@ def run_match(agent_1: Agent | partial,
 
     return match_stats
 
-
 # # SUBMISSION: Additional Imports
 # Note that all the imports up to this point (for the Malachite Env, WarehouseBrawl, etc...) will be automatically included in the submission, so you need not write them.
 # 
@@ -1394,6 +1393,78 @@ def gen_reward_manager():
             'on_combo_reward': ('hit_during_stun', RewTerm(func=on_combo_reward, weight=5)),
         }
         return RewardManager(reward_functions, signal_subscriptions)
+
+## Run Human vs AI match function
+import pygame
+from pygame.locals import QUIT
+
+def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=30*90, resolution=CameraResolution.LOW):
+    pygame.init()
+    screen = pygame.display.set_mode((1920, 1080))  # Set screen dimensions
+    pygame.display.set_caption("AI Squared - Player vs AI Demo")
+    clock = pygame.time.Clock()
+
+    # Initialize environment
+    env = WarehouseBrawl(resolution=resolution, train_mode=False)
+    observations, _ = env.reset()
+    obs_1 = observations[0]
+    obs_2 = observations[1]
+
+    if not agent_1.initialized: agent_1.get_env_info(env)
+    if not agent_2.initialized: agent_2.get_env_info(env)
+
+    # Run the match loop
+    running = True
+    timestep = 0
+    while running and timestep < max_timesteps:
+        # Pygame event to handle real-time user input 
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                running = False
+
+        # User input
+        action_1 = agent_1.predict(obs_1)
+
+        # AI input
+        action_2 = agent_2.predict(obs_2)
+
+        # Sample action space
+        full_action = {0: action_1, 1: action_2}
+        observations, rewards, terminated, truncated, info = env.step(full_action)
+        obs_1 = observations[0]
+        obs_2 = observations[1]
+
+        # Render the game
+        img = env.render()
+        screen.blit(pygame.surfarray.make_surface(img), (0, 0))
+        pygame.display.flip()
+
+        # Control frame rate (30 fps)
+        clock.tick(30)
+
+        # If the match is over (either terminated or truncated), stop the loop
+        if terminated or truncated:
+            running = False
+
+        timestep += 1
+
+    # Clean up pygame after match
+    pygame.quit()
+
+    # Return match stats
+    player_1_stats = env.get_stats(0)
+    player_2_stats = env.get_stats(1)
+    match_stats = MatchStats(
+        match_time=timestep / 30.0,
+        player1=player_1_stats,
+        player2=player_2_stats,
+        player1_result=Result.WIN if player_1_stats.lives_left > player_2_stats.lives_left else Result.LOSS
+    )
+
+    # Close environment
+    env.close()
+
+    return match_stats
 
 if __name__ == '__main__':
     # Create agent
