@@ -10,4 +10,18 @@ assets.zip
 # Videos, zip files, or csv
 *.mp4
 *.zip
-*.csv
+*.csv# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Virtual envs
+venv/
+.venv/
+ENV/
+env/
+
+# Local scratch
+path/
