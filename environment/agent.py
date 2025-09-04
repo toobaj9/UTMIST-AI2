@@ -910,7 +910,7 @@ class UserInputAgent(Agent):
 
     def predict(self, obs):
         action = self.act_helper.zeros()
-
+       
         keys = pygame.key.get_pressed()
         if keys[pygame.K_w]:
             action = self.act_helper.press_keys(['w'], action)
@@ -933,6 +933,11 @@ class UserInputAgent(Agent):
             action = self.act_helper.press_keys(['l'], action)
         if keys[pygame.K_g]:
             action = self.act_helper.press_keys(['g'], action)
+
+        if keys[pygame.K_q]:
+            action = self.act_helper.press_keys(['q'], action)
+        if keys[pygame.K_v]:
+            action = self.act_helper.press_keys(['v'], action)
         return action
 
 
