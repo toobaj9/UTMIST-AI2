@@ -11,3 +11,6 @@ assets.zip
 *.mp4
 *.zip
 *.csv
+
+# Normal
+__pycache__
