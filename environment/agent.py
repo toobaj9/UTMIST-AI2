@@ -1458,9 +1458,9 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
         if terminated or truncated:
             running = False
         
-        if agent_1.on_plaform is not None:
-            platform = agent_1.on_plaform
-            agent_1.body.velocity += platform.body.velocity
+        # if agent_1.on_plaform is not None:
+        #     platform = agent_1.on_plaform
+        #     agent_1.body.velocity += platform.body.velocity
 
 
         timestep += 1

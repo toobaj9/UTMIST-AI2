@@ -1098,6 +1098,25 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
             return True
         return False
 
+    def separate_player_platform(self, arbiter, space, data):
+        player_shape, platform_shape = arbiter.shapes
+        player = player_shape.body
+        # Clear reference when leaving platform
+        player.on_platform = None
+
+   
+   
+    def pre_solve_oneway(self, arbiter, space, data):
+        player_shape, platform_shape = arbiter.shapes
+        player = player_shape.body
+        platform = platform_shape.body
+        normal = arbiter.contact_point_set.normal
+        if normal.y > 0:
+            # only collide if player is above
+            player.on_platform = platform
+            return True
+        return False
+
     def separate_player_platform(arbiter, space, data):
         player_shape, platform_shape = arbiter.shapes
         player = player_shape.body
@@ -1118,6 +1137,21 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         # Environment
         ground = Ground(self.space, 0, 2.03, 10.67)
         self.objects['ground'] = ground
+        
+        
+        stage1 = Stage(self.space, 1, 4, 2, 2, 2)
+        self.objects['stage1'] = stage1
+        # State the waypoint positions for this platform.
+        # Note that in our case the y axis increases DOWNWARDS, NOT UPWARD
+        stage1.waypoint1 = (0,1)
+        stage1.waypoint2 = (0,1)
+
+        stage2 = Stage(self.space, 2, 4, 2, 2, 2)
+        self.objects['stage2'] = stage2
+        # State the waypoint positions for this platform.
+        # Note that in our case the y axis increases DOWNWARDS, NOT UPWARD
+        stage2.waypoint1 = (-4,-1)
+        stage2.waypoint2 = (4,-1)
         
         
         stage1 = Stage(self.space, 1, 4, 2, 2, 2)
@@ -1289,6 +1323,73 @@ class Stage(GameObject):
         print("Stage is rendered")
 
     def render(self, canvas, camera) -> None:
+         self.load_assets()
+         self.draw_image(canvas, self.stage_img, (self.body.position.x, self.body.position.y), self.width, camera)
+         self.draw_outline(canvas,camera)
+
+
+    def draw_outline(self, canvas, camera):
+      # 1. Get the vertices of the shape (in local body space)
+      local_vertices = self.shape.get_vertices()
+
+      # 2. Convert to world space (apply rotation and position)
+      world_vertices = [v.rotated(self.body.angle) + self.body.position for v in local_vertices]
+
+      # 3. Convert to screen space using camera.gtp()
+      screen_points = [camera.gtp(v) for v in world_vertices]
+
+      # 4. Draw red outline
+      pygame.draw.polygon(canvas, (255, 0, 0), screen_points, width=2)#martin
+
+
+    def physics_process(self, deltaTime: float) -> None:
+      """Move between waypoints with variable speed, along any line (horizontal, vertical, diagonal)."""
+      import math
+
+      currentPos = self.body.position
+      target = self.waypoint2 if self.moving_to_w2 else self.waypoint1
+
+      dx = target[0] - currentPos[0]
+      dy = target[1] - currentPos[1]
+      dist = math.sqrt(dx*dx + dy*dy)
+
+      # If we're basically at the target, snap and swap direction
+      if dist < 1e-5:
+          self.body.position = target
+          self.moving_to_w2 = not self.moving_to_w2
+          return
+
+      # Direction vector
+      dir_x = dx / dist
+      dir_y = dy / dist
+
+      # Vector from waypoint1 to waypoint2
+      seg_x = self.waypoint2[0] - self.waypoint1[0]
+      seg_y = self.waypoint2[1] - self.waypoint1[1]
+      seg_len = max(math.sqrt(seg_x*seg_x + seg_y*seg_y),0.05)
+
+      # Midpoint of the segment
+      mid_x = (self.waypoint1[0] + self.waypoint2[0]) * 0.5
+      mid_y = (self.waypoint1[1] + self.waypoint2[1]) * 0.5
+
+      # Projection of current position onto the segment direction
+      # This gives us "how far along the line" we are
+      rel_x = max(currentPos[0] - mid_x, 0.05)
+      rel_y = max(currentPos[1] - mid_y,0.05)
+      proj = (rel_x * seg_x + rel_y * seg_y) / seg_len  # signed distance from midpoint along segment
+
+      # Speed scales with distance from midpoint (max at ends, min at center)
+      base_speed = 2.0
+      speed = base_speed * (1.0 + 0.5 * abs(proj) / (seg_len * 0.5))
+
+      step = speed * deltaTime
+      if step >= dist:
+          self.body.position = target
+          self.moving_to_w2 = not self.moving_to_w2
+      else:
+          new_x = currentPos[0] + dir_x * step
+          new_y = currentPos[1] + dir_y * step
+          self.body.position = (new_x, new_y)
          self.load_assets()
          self.draw_image(canvas, self.stage_img, (self.body.position.x, self.body.position.y), self.width, camera)
          self.draw_outline(canvas,camera)
