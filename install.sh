@@ -28,8 +28,14 @@ ensure_command() {
     fi
 }
 
-ensure_command gdown python3-pip
+# Install system dependencies
 ensure_command unzip unzip
+ensure_command python3 python3
+ensure_command pip python3-pip
+
+# Upgrade pip and install gdown
+pip install --upgrade pip
+pip install gdown --no-cache-dir
 
 # ----------------------------
 # Download & unzip a Google Drive file
@@ -68,7 +74,6 @@ download_and_unzip 1LAOL8sYCUfsCk3TEA3vvyJCLSl0EdwYB attacks
 # ----------------------------
 if [ -f requirements.txt ]; then
     echo "Installing Python dependencies..."
-    pip install --upgrade pip
     pip install -r requirements.txt
 else
     echo "No requirements.txt found. Skipping Python dependency installation."
