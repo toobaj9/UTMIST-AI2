@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-set -e  # exit on any error
+set -e
 
-# ----------------------------
-# Helper function: remove path if exists
-# ----------------------------
 remove_path() {
     if [ -e "$1" ]; then
         echo "Removing existing $1..."
@@ -12,47 +9,40 @@ remove_path() {
 }
 
 # ----------------------------
-# Ensure required tools are installed
+# Install system packages
 # ----------------------------
-ensure_command() {
-    if ! command -v "$1" &> /dev/null; then
-        echo "Installing $1..."
-        if [ -x "$(command -v apt-get)" ]; then
-            apt-get update && apt-get install -y "$2"
-        elif [ -x "$(command -v yum)" ]; then
-            yum install -y "$2"
-        else
-            echo "Unsupported package manager. Please install $1 manually."
-            exit 1
-        fi
-    fi
-}
-
-# Install system dependencies
-ensure_command unzip unzip
-ensure_command python3 python3
-ensure_command pip python3-pip
-
-# Upgrade pip and install gdown
-pip install --upgrade pip
-pip install gdown --no-cache-dir
+apt-get update && apt-get install -y \
+    unzip \
+    python3 \
+    python3-pip \
+    gcc \
+    g++ \
+    python3-dev \
+    libapt-pkg-dev \
+    build-essential
 
 # ----------------------------
-# Download & unzip a Google Drive file
+# Upgrade pip and install gdown if missing
+# ----------------------------
+python3 -m pip install --upgrade pip
+if ! python3 -m pip show gdown &> /dev/null; then
+    python3 -m pip install gdown --no-cache-dir
+fi
+
+# ----------------------------
+# Download & unzip Google Drive files
 # ----------------------------
 download_and_unzip() {
     FILE_ID="$1"
     DEST="$2"
     ZIP_NAME="${DEST}.zip"
 
-    # Remove old files/directories
     remove_path "$DEST"
     remove_path "$ZIP_NAME"
 
     echo "Downloading $ZIP_NAME..."
     gdown "$FILE_ID" -O "$ZIP_NAME"
 
-    # Check if download is a valid zip
     if unzip -tq "$ZIP_NAME" &> /dev/null; then
         echo "Unzipping $ZIP_NAME..."
         unzip -q "$ZIP_NAME"
@@ -63,9 +53,6 @@ download_and_unzip() {
     fi
 }
 
-# ----------------------------
-# Download assets and attacks
-# ----------------------------
 download_and_unzip 1F2MJQ5enUPVtyi3s410PUuv8LiWr8qCz assets
 download_and_unzip 1LAOL8sYCUfsCk3TEA3vvyJCLSl0EdwYB attacks
 
@@ -74,7 +61,7 @@ download_and_unzip 1LAOL8sYCUfsCk3TEA3vvyJCLSl0EdwYB attacks
 # ----------------------------
 if [ -f requirements.txt ]; then
     echo "Installing Python dependencies..."
-    pip install -r requirements.txt
+    python3 -m pip install -r requirements.txt
 else
     echo "No requirements.txt found. Skipping Python dependency installation."
 fi
