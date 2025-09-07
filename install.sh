@@ -18,9 +18,9 @@ ensure_command() {
     if ! command -v "$1" &> /dev/null; then
         echo "Installing $1..."
         if [ -x "$(command -v apt-get)" ]; then
-            sudo apt-get update && sudo apt-get install -y "$2"
+            apt-get update && apt-get install -y "$2"
         elif [ -x "$(command -v yum)" ]; then
-            sudo yum install -y "$2"
+            yum install -y "$2"
         else
             echo "Unsupported package manager. Please install $1 manually."
             exit 1
