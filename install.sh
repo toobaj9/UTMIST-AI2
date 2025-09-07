@@ -1,48 +1,77 @@
 #!/usr/bin/env bash
-set -e  # exit if any command fails
+set -e  # exit on any error
 
-# Function to remove file or directory if it exists
+# ----------------------------
+# Helper function: remove path if exists
+# ----------------------------
 remove_path() {
     if [ -e "$1" ]; then
+        echo "Removing existing $1..."
         rm -rf "$1"
     fi
 }
 
-# Make sure gdown is installed
-if ! command -v gdown &> /dev/null; then
-    echo "Installing gdown..."
-    pip install gdown
-fi
+# ----------------------------
+# Ensure required tools are installed
+# ----------------------------
+ensure_command() {
+    if ! command -v "$1" &> /dev/null; then
+        echo "Installing $1..."
+        if [ -x "$(command -v apt-get)" ]; then
+            sudo apt-get update && sudo apt-get install -y "$2"
+        elif [ -x "$(command -v yum)" ]; then
+            sudo yum install -y "$2"
+        else
+            echo "Unsupported package manager. Please install $1 manually."
+            exit 1
+        fi
+    fi
+}
 
-# 1. Remove old assets
-remove_path assets
-remove_path assets.zip
+ensure_command gdown python3-pip
+ensure_command unzip unzip
 
-# 2. Download & unzip assets
-echo "Downloading assets.zip..."
-gdown "https://drive.google.com/file/d/1F2MJQ5enUPVtyi3s410PUuv8LiWr8qCz/view?usp=sharing" -O assets.zip
-echo "Unzipping assets.zip..."
-unzip -q assets.zip
-rm assets.zip
+# ----------------------------
+# Download & unzip a Google Drive file
+# ----------------------------
+download_and_unzip() {
+    FILE_ID="$1"
+    DEST="$2"
+    ZIP_NAME="${DEST}.zip"
 
-# 3. Remove old attacks
-remove_path attacks
-remove_path attacks.zip
+    # Remove old files/directories
+    remove_path "$DEST"
+    remove_path "$ZIP_NAME"
 
-# 4. Download & unzip attacks
-echo "Downloading attacks.zip..."
-gdown "https://drive.google.com/file/d/1LAOL8sYCUfsCk3TEA3vvyJCLSl0EdwYB/view?usp=sharing" -O attacks.zip
-echo "Unzipping attacks.zip..."
-unzip -q attacks.zip
-rm attacks.zip
+    echo "Downloading $ZIP_NAME..."
+    gdown "$FILE_ID" -O "$ZIP_NAME"
 
-# 5. Install dependencies
+    # Check if download is a valid zip
+    if unzip -tq "$ZIP_NAME" &> /dev/null; then
+        echo "Unzipping $ZIP_NAME..."
+        unzip -q "$ZIP_NAME"
+        rm "$ZIP_NAME"
+    else
+        echo "❌ $ZIP_NAME is not a valid zip file!"
+        exit 1
+    fi
+}
+
+# ----------------------------
+# Download assets and attacks
+# ----------------------------
+download_and_unzip 1F2MJQ5enUPVtyi3s410PUuv8LiWr8qCz assets
+download_and_unzip 1LAOL8sYCUfsCk3TEA3vvyJCLSl0EdwYB attacks
+
+# ----------------------------
+# Install Python dependencies
+# ----------------------------
 if [ -f requirements.txt ]; then
-    echo "Installing dependencies..."
+    echo "Installing Python dependencies..."
     pip install --upgrade pip
     pip install -r requirements.txt
 else
-    echo "No requirements.txt found. Skipping dependency installation."
+    echo "No requirements.txt found. Skipping Python dependency installation."
 fi
 
 echo "✅ Installation complete."
