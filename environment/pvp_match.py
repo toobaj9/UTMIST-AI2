@@ -9,7 +9,7 @@ experiment_dir_1 = "model" #input('Model experiment directory name (e.g. experim
 model_name_1 = "rl_model_81688323_steps_cracked" #input('Name of first model (e.g. rl_model_100_steps): ')
 
 my_agent = UserInputAgent()
-opponent = BasedAgent()
+opponent = ConstantAgent()
 
 num_matches = 1 #int(input('Number of matches: '))
 #opponent=BasedAgent()

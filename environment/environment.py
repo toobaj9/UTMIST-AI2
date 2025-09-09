@@ -740,6 +740,14 @@ class Facing(Enum):
     @staticmethod
     def flip(facing):
         return Facing.LEFT if facing == Facing.RIGHT else Facing.RIGHT
+    
+    @staticmethod
+    def get_key(facing):
+        return "D" if facing == Facing.RIGHT else "A"
+    
+    @staticmethod
+    def get_opposite_key(facing):
+        return "A" if facing == Facing.RIGHT else "D"
 
     @staticmethod
     def from_direction(direction: float) -> "Facing":
@@ -1261,6 +1269,7 @@ class PlayerInputHandler():
         # Raw axes computed from key states.
         self.raw_vertical = 0.0   # +1 if W is held, -1 if S is held.
         self.raw_horizontal = 0.0 # +1 if D is held, -1 if A is held.
+        self.no_horizontal = True # True if neither A nor D is held.
 
     def update(self, action: np.ndarray):
         """
@@ -1291,6 +1300,7 @@ class PlayerInputHandler():
         self.raw_vertical = (1.0 if self.key_status["W"].held else 0.0) + (-1.0 if self.key_status["S"].held else 0.0)
         # Horizontal axis: D (+1) and A (-1)
         self.raw_horizontal = (1.0 if self.key_status["D"].held else 0.0) + (-1.0 if self.key_status["A"].held else 0.0)
+        self.no_horizontal = not self.key_status['D'].held and not self.key_status['A'].held
 
     def __repr__(self):
         # For debugging: provide a summary of the key statuses and axes.
@@ -1572,16 +1582,19 @@ class WalkingState(GroundState):
         new_state = super().physics_process(dt)
         if new_state is not None: return new_state
 
-        # Leave walking if not moving
-        direction: float = self.p.input.raw_horizontal
-
         # Check if turning
-        if Facing.turn_check(self.p.facing, direction):
+        original_key = Facing.get_key(self.p.facing)
+        opposite_key = Facing.get_opposite_key(self.p.facing)
+        opposite_just_pressed = self.p.input.key_status[opposite_key].just_pressed
+        original_held = self.p.input.key_status[original_key].held
+        opposite_held = self.p.input.key_status[opposite_key].held
+        if opposite_just_pressed or (not original_held and opposite_held):
             if self.p.input.key_status["l"].just_pressed:
                 return self.p.states['backdash']
-
             return self.p.states['turnaround']
-        if abs(direction) < 1e-2:
+
+        # Check if stopping
+        if self.p.input.no_horizontal:
             return self.p.states['standing']
 
         # Check for dash
@@ -1589,7 +1602,7 @@ class WalkingState(GroundState):
             return self.p.states['dash']
 
         # Handle movement
-        self.p.body.velocity = pymunk.Vec2d(direction * self.p.move_speed, self.p.body.velocity.y)
+        self.p.body.velocity = pymunk.Vec2d(int(self.p.facing) * self.p.move_speed, self.p.body.velocity.y)
 
         return None
 
@@ -1602,22 +1615,27 @@ class SprintingState(GroundState):
         new_state = super().physics_process(dt)
         if new_state is not None: return new_state
 
-        # Leave walking if not moving
-        direction: float = self.p.input.raw_horizontal
         # Check if turning
-        if Facing.turn_check(self.p.facing, direction):
+        original_key = Facing.get_key(self.p.facing)
+        opposite_key = Facing.get_opposite_key(self.p.facing)
+        opposite_just_pressed = self.p.input.key_status[opposite_key].just_pressed
+        original_held = self.p.input.key_status[original_key].held
+        opposite_held = self.p.input.key_status[opposite_key].held
+        if opposite_just_pressed or (not original_held and opposite_held):
             if self.p.input.key_status["l"].just_pressed:
                 return self.p.states['backdash']
             return self.p.states['turnaround']
-        if abs(direction) < 1e-2:
+
+        # Check if stopping
+        if self.p.input.no_horizontal:
             return self.p.states['standing']
 
-         # Check for dash
+        # Check for dash
         if self.p.input.key_status["l"].just_pressed:
             return self.p.states['dash']
 
         # Handle movement
-        self.p.body.velocity = pymunk.Vec2d(direction * self.p.run_speed, self.p.body.velocity.y)
+        self.p.body.velocity = pymunk.Vec2d(int(self.p.facing) * self.p.run_speed, self.p.body.velocity.y)
 
         return None
 
@@ -1663,9 +1681,16 @@ class TurnaroundState(GroundState):
             return new_state
 
         if self.turnaround_timer <= 0:
-            # After the turnaround period, update the facing direction.
-            self.p.facing = Facing.flip(self.p.facing)
-            return GroundState.get_ground_state(self.p)
+            # If still pressing opposite, that takes priority over held original
+            if self.p.input.key_status[Facing.get_opposite_key(self.p.facing)].held:
+                self.p.facing = Facing.flip(self.p.facing)
+                return self.p.states['walking']
+
+            # If not pressing opposite, but still pressing original, go to new turnaround
+            if self.p.input.key_status[Facing.get_key(self.p.facing)].held:
+                self.p.facing = Facing.flip(self.p.facing)
+                return self.p.states['turnaround']
+            return self.p.states['standing']
 
 
         # Allow breaking out of turnaround by jumping.
@@ -2026,6 +2051,7 @@ class CastFrameChangeHolder():
 
         if "casterVelocitySet" in data:
             cvs_data = data["casterVelocitySet"]
+            #print(f"data for below frame {cvs_data}")
             self.caster_velocity_set = CasterVelocitySet(
                 magnitude=cvs_data.get("magnitude", 0.0),
                 directionDeg=cvs_data.get("directionDeg", 0.0),
@@ -2104,7 +2130,7 @@ class Cast():
         frame_changes = self.cast_data.get("frameChanges", [])
         for change_data in frame_changes:
             # Only use the data that is present; don't create a new change if not provided.
-            if change_data.get("frame") == idx:
+            if change_data.get("frame") // 2 == idx:
                 return CastFrameChangeHolder(change_data)
         return None
 
@@ -2237,6 +2263,7 @@ class Power():
             is_in_attack_frames = current_cast.frame_idx < (current_cast.startup_frames + current_cast.attack_frames)
             in_attack = (not in_startup) and (is_in_attack_frames or current_cast.must_be_held)
 
+            #print(f"power_id {self.power_id}, cast_idx {self.cast_idx}, idx {current_cast.frame_idx}, in_startup {in_startup}, in_attack {in_attack}")
             if in_startup:
                 self.p.do_cast_frame_changes_with_changes(cfch, self.enable_floor_drag, move_manager)
                 self.p.set_hitboxes_to_draw()
@@ -2400,7 +2427,8 @@ class AttackState(PlayerObjectState):
         self.dash_timer = self.p.dash_time
         # get random number from 1 to 12
         direction: float = self.p.input.raw_horizontal
-        self.p.facing = Facing.from_direction(direction)
+        if not self.p.input.no_horizontal:
+            self.p.facing = Facing.from_direction(direction)
         self.seed = random.randint(1, 12)
         # Optionally, play a dash sound or animation here.
     
@@ -2787,11 +2815,11 @@ class Player(GameObject):
         self.jump_speed = 8.9
         self.max_fall_speed = 12
         self.fast_fall_ease = 14.25 / self.env.fps
-        self.in_air_ease = 6.75 / self.env.fps
+        self.in_air_ease = 10.75 / self.env.fps
         self.run_speed = 8
         self.dash_speed = 10
         self.backdash_speed = 4
-        self.turnaround_time = 3
+        self.turnaround_time = 1
         self.taunt_time = 30
         self.backdash_time = 7
         self.dodge_time = 10
@@ -3030,7 +3058,9 @@ class Player(GameObject):
 
         # Process caster velocity set.
         cvs = changes.caster_velocity_set
+        #print(f"{self.agent_id} {cvs} ding!")
         if cvs is not None and cvs.active:
+            
             angle_rad = math.radians(cvs.directionDeg)
             vel = (math.cos(angle_rad) * cvs.magnitude, -math.sin(angle_rad) * cvs.magnitude)
             vel = (vel[0] * int(mm.move_facing_direction), vel[1])
