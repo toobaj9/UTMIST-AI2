@@ -1400,7 +1400,15 @@ from pygame.locals import QUIT
 
 def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=30*90, resolution=CameraResolution.LOW):
     pygame.init()
-    screen = pygame.display.set_mode((1920, 1080))  # Set screen dimensions
+
+    resolutions = {
+        CameraResolution.LOW: (480, 720),
+        CameraResolution.MEDIUM: (720, 1280),
+        CameraResolution.HIGH: (1080, 1920)
+    }
+    
+    #screen = pygame.display.set_mode((1920, 1080))  # Set screen dimensions
+    screen = pygame.display.set_mode(resolutions[resolution][::-1])  # Set screen dimensions
     pygame.display.set_caption("AI Squared - Player vs AI Demo")
     clock = pygame.time.Clock()
 

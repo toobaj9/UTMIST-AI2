@@ -920,9 +920,10 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         self.attacks = {}
 
         self.keys = {
+            'Hammer SLight': MoveType.SLIGHT,
             'Unarmed NLight': MoveType.NLIGHT,
             'Unarmed DLight': MoveType.DLIGHT,
-            'Unarmed SLight': MoveType.SLIGHT,
+            #'Unarmed SLight': MoveType.SLIGHT,
             'Unarmed NSig':   MoveType.NSIG,
             'Unarmed DSig':   MoveType.DSIG,
             'Unarmed SSig':   MoveType.SSIG,
@@ -1463,15 +1464,23 @@ class InAirState(PlayerObjectState):
 
         if not self.can_control(): return None
 
+        # Check for air turn
         direction: float = self.p.input.raw_horizontal
         if self.is_base and Facing.turn_check(self.p.facing, direction):
             air_turn = self.p.states['air_turnaround']
             air_turn.send(self.jump_timer, self.jumps_left, self.recoveries_left)
             return air_turn
 
+        # Check for fast fall
+        if self.p.input.raw_vertical < -0.5 and self.p.body.velocity.y > 0:
+            vel_y = self.p.move_toward(self.p.body.velocity.y, self.p.max_fall_speed, self.p.fast_fall_ease)
+        else:
+            vel_y = min(self.p.body.velocity.y, self.p.max_fall_speed)
+
         vel_x = self.p.move_toward(self.p.body.velocity.x, direction * self.p.move_speed, self.p.in_air_ease)
         #print(self.p.body.velocity.x, vel_x)
-        self.p.body.velocity = pymunk.Vec2d(vel_x, self.p.body.velocity.y)
+
+        self.p.body.velocity = pymunk.Vec2d(vel_x, vel_y)
 
         #print(self.p.is_on_floor(), self.p.body.position)
         if self.p.is_on_floor():
@@ -1511,6 +1520,8 @@ class InAirState(PlayerObjectState):
                 attack_state.recoveries_left = self.recoveries_left
                 attack_state.give_move(move_type)
                 return attack_state
+        
+        
 
         return None
 
@@ -1659,6 +1670,7 @@ class TurnaroundState(GroundState):
 
         # Allow breaking out of turnaround by jumping.
         if self.p.input.key_status["space"].just_pressed and self.p.is_on_floor():
+            self.p.facing = Facing.flip(self.p.facing)
             self.p.body.velocity = pymunk.Vec2d(self.p.body.velocity.x, -self.p.jump_speed)
             return self.p.states['in_air']
 
@@ -2387,6 +2399,8 @@ class AttackState(PlayerObjectState):
     def enter(self) -> None:
         self.dash_timer = self.p.dash_time
         # get random number from 1 to 12
+        direction: float = self.p.input.raw_horizontal
+        self.p.facing = Facing.from_direction(direction)
         self.seed = random.randint(1, 12)
         # Optionally, play a dash sound or animation here.
     
@@ -2507,6 +2521,7 @@ class AnimationSprite2D(GameObject):
             'unarmednsig_scissors': [1.6],
             'unarmedrecovery': [1.0],
             'unarmeddlight': [1.2],
+            'hammerslight': [2.3],
         }
 
         self.color_mapping = {self.albert_palette[key]: self.kai_palette[key] for key in self.albert_palette}
@@ -2678,7 +2693,8 @@ class Player(GameObject):
         self.attack_anims = {
             MoveType.NLIGHT : ('idle', 'unarmednlightfinisher'),
             MoveType.DLIGHT : ('idle', 'unarmeddlight'),
-            MoveType.SLIGHT : ('alpunch', 'unarmedslight'),
+            #MoveType.SLIGHT : ('alpunch', 'unarmedslight'),
+            MoveType.SLIGHT : ('alpunch', 'hammerslight'),
             MoveType.NSIG   : ('alup', {28: 'unarmednsig_held', 29: ('unarmednsig_paper', 'unarmednsig_rock', 'unarmednsig_scissors')}),
             MoveType.DSIG   : ('idle', {26: 'unarmeddsig_held', 27: 'unarmeddsig_end'}),
             MoveType.SSIG   : ('alssig', {21: 'unarmedssig_held', 22: 'unarmedssig_end'}),
@@ -2769,11 +2785,13 @@ class Player(GameObject):
         # Parameters
         self.move_speed = 6.75
         self.jump_speed = 8.9
+        self.max_fall_speed = 12
+        self.fast_fall_ease = 14.25 / self.env.fps
         self.in_air_ease = 6.75 / self.env.fps
         self.run_speed = 8
         self.dash_speed = 10
         self.backdash_speed = 4
-        self.turnaround_time = 4
+        self.turnaround_time = 3
         self.taunt_time = 30
         self.backdash_time = 7
         self.dodge_time = 10
@@ -2895,7 +2913,7 @@ class Player(GameObject):
         self.animation_sprite_2d.render(camera, flipped=flipped)
         self.attack_sprite.render(camera, flipped=flipped)
 
-
+        # Draw hurtbox
         hurtbox_offset = Capsule.get_hitbox_offset(0, 0)
         hurtbox_offset = (hurtbox_offset[0] * int(self.facing), hurtbox_offset[1])
         hurtbox_pos = (self.body.position[0] + hurtbox_offset[0], self.body.position[1] + hurtbox_offset[1])
@@ -2905,7 +2923,10 @@ class Player(GameObject):
             self.hurtbox_collider.width / (2 * WarehouseBrawl.BRAWL_TO_UNITS),
             self.hurtbox_collider.height / (2 * WarehouseBrawl.BRAWL_TO_UNITS)
         ])
-        Capsule.draw_hurtbox(camera, hurtbox_data, hurtbox_pos)
+        state_name = type(self.state).__name__
+        Capsule.draw_hurtbox(camera, hurtbox_data, hurtbox_pos, stunned=state_name == 'StunState')
+
+        
 
         # Draw hitboxes
         for hitbox in self.hitboxes_to_draw:
@@ -3221,11 +3242,16 @@ class Capsule():
         Capsule.draw_hithurtbox(camera, hitbox, pos, color=(255, 0, 0))
 
     @staticmethod
-    def draw_hurtbox(camera: Camera, hitbox: np.ndarray, pos):
+    def draw_hurtbox(camera: Camera, hitbox: np.ndarray, pos, stunned=False):
         """
         Draws a rounded rectangle (capsule) on the screen using PyGame.
         """
-        Capsule.draw_hithurtbox(camera, hitbox, pos, color=(247, 215, 5))
+        if stunned:
+            color = (67, 217, 240)  # Blue color for stunned
+        else:
+            color = (247, 215, 5)  # Default yellow color
+
+        Capsule.draw_hithurtbox(camera, hitbox, pos, color=color)
 
     @staticmethod
     def draw_hithurtbox(camera: Camera, hitbox: np.ndarray, pos: bool, color=(255, 0, 0)):
