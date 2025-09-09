@@ -272,7 +272,7 @@ class KeyIconPanel():
         self.height_percentage = height_percentage
         self.font_size = font_size
         # Define the keys in order: first 4 (W, A, S, D), then space, then 5 (G, H, J, K, L)
-        self.keys = ["W", "A", "S", "D", "Space", "G", "H", "J", "K", "L"]
+        self.keys = ["W", "A", "S", "D", "Space", "G", "H", "J", "K", "L", "q", "v"]
 
     def draw_key_icon(self, surface, rect: pygame.Rect, key_label: str, pressed: bool, font):
         """
@@ -364,8 +364,26 @@ class KeyIconPanel():
                 row_height
             )
             icon_rect = cell_rect.inflate(-2, -2)
-            pressed = input_vector[5 + idx] > 0.5
+
+            a = [4,0,2,3,1]
+            pressed = input_vector[5 + a[idx]] > 0.5
             self.draw_key_icon(canvas, icon_rect, key, pressed, font)
+
+                # Row 4: q and v (last 2 keys)
+        row4_keys = self.keys[10:12]
+        row4_count = len(row4_keys)
+        for idx, key in enumerate(row4_keys):
+            cell_width = panel_rect.width / row4_count
+            cell_rect = pygame.Rect(
+                panel_rect.x + idx * cell_width,
+                panel_rect.y + 3 * row_height,   # row index 3 (fourth row)
+                cell_width,
+                row_height
+            )
+            icon_rect = cell_rect.inflate(-2, -2)
+            pressed = input_vector[10 + idx] > 0.5
+            self.draw_key_icon(canvas, icon_rect, key, pressed, font)
+
 
 
 # ### UIHandler
@@ -624,9 +642,12 @@ class Camera():
             self.key_panel_1.draw(self, env.cur_action[0])
             self.key_panel_2.draw(self, env.cur_action[1])
 
-        img = np.transpose(
-                np.array(pygame.surfarray.pixels3d(self.canvas)), axes=(1, 0, 2)
-            )
+        # img = np.transpose(
+        #         np.array(pygame.surfarray.pixels3d(self.canvas)), axes=(1, 0, 2)
+        #     )
+
+        img = np.array(pygame.surfarray.pixels3d(self.canvas)).swapaxes(0, 1)[:, ::-1, :]
+        img = np.rot90(img, k=1)  
 
         if mode == RenderMode.PYGAME_WINDOW:
             pygame.display.flip()
@@ -770,7 +791,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
     BRAWL_TO_UNITS = 1.024 / 320  # Conversion factor
 
-    def __init__(self, mode: RenderMode=RenderMode.RGB_ARRAY, resolution: CameraResolution=CameraResolution.LOW, train_mode: bool = False):
+    def __init__(self, mode: RenderMode=RenderMode.RGB_ARRAY, resolution: CameraResolution=CameraResolution.MEDIUM, train_mode: bool = False):
         super(WarehouseBrawl, self).__init__()
 
         self.stage_width_tiles: float = 29.8
@@ -886,6 +907,9 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         act_helper.add_key("k") # K (Heavy Attack)
         act_helper.add_key("g") # G (Taunt)
 
+        act_helper.add_key("q") #equip weapon
+        act_helper.add_key("v") #drop weapon
+
         print('Action space', act_helper.low, act_helper.high)
 
         self.act_helper = act_helper
@@ -915,29 +939,56 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
     def load_attacks(self):
         # load all from /content/attacks
         self.attacks = {}
+        self.spear_attacks = {}
+        self.hammer_attacks = {}
 
         self.keys = {
-            'Unarmed NLight': MoveType.NLIGHT,
-            'Unarmed DLight': MoveType.DLIGHT,
-            'Unarmed SLight': MoveType.SLIGHT,
-            'Unarmed NSig':   MoveType.NSIG,
-            'Unarmed DSig':   MoveType.DSIG,
-            'Unarmed SSig':   MoveType.SSIG,
-            'Unarmed NAir':   MoveType.NAIR,
-            'Unarmed DAir':   MoveType.DAIR,
-            'Unarmed SAir':   MoveType.SAIR,
-            'Unarmed Recovery': MoveType.RECOVERY,
-            'Unarmed Groundpound': MoveType.GROUNDPOUND,
+            'NLight': MoveType.NLIGHT,
+            'DLight': MoveType.DLIGHT,
+            'SLight': MoveType.SLIGHT,
+            'NSig':   MoveType.NSIG,
+            'DSig':   MoveType.DSIG,
+            'SSig':   MoveType.SSIG,
+            'NAir':   MoveType.NAIR,
+            'DAir':   MoveType.DAIR,
+            'SAir':   MoveType.SAIR,
+            'Recovery': MoveType.RECOVERY,
+            'Groundpound': MoveType.GROUNDPOUND,
         }
 
-        for file in sorted(os.listdir('attacks')):
+        
+
+        for file in sorted(os.listdir('unarmed_attacks')):
             name = file.split('.')[0]
+            print(name)
+            name = name.split(" ")[1]
+
             if name not in self.keys.keys(): continue
-            with open(os.path.join('attacks', file)) as f:
+            with open(os.path.join('unarmed_attacks', file)) as f:
                 move_data = json.load(f)
 
-            self.attacks[self.keys[name]] = move_data
+            self.attacks[self.keys[name]] = move_data 
 
+        for file in sorted(os.listdir('spear_attacks')):
+            name = file.split('.')[0].split(" ")[1]
+            if name not in self.keys.keys(): continue
+            with open(os.path.join('spear_attacks', file)) as f:
+                move_data = json.load(f)
+
+            self.spear_attacks[self.keys[name]] = move_data 
+
+        for file in sorted(os.listdir('hammer_attacks')):
+            name = file.split('.')[0].split(" ")[1]
+            if name not in self.keys.keys(): continue
+            with open(os.path.join('hammer_attacks', file)) as f:
+                move_data = json.load(f)
+
+            self.hammer_attacks[self.keys[name]] = move_data 
+
+       
+
+
+        
 
     def step(self, action: dict[int, np.ndarray]):
         # Create new rewards dict
@@ -951,9 +1002,8 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         # Process all other steps
         for obj_name, obj in self.objects.items():
             # If player
-            if isinstance(obj, Player):
-                continue
-            else:
+            if not isinstance(obj, Player) or obj_name[0:len('SpawnerVFX')] == 'SpawnerVFX': #martin 2
+
                 obj.process()
             
         # Pre-process player step
@@ -975,14 +1025,24 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         for obj_name, obj in self.objects.items():
             obj.physics_process(self.dt)
 
-        # PyMunk step
+         # PyMunk step
         self.space.step(self.dt)
         self.steps += 1
+          # --- Press 'V' to place a DroppedWeaponSpawner of the player's current weapon ---
+        DroppedWeaponSpawner.try_drop(self)
+
+        if hasattr(self, "weapon_controller"):#martin
+            self.weapon_controller.try_pick_up_all(self.players, self.steps)
+            self.weapon_controller.update(self.steps)
 
         truncated = self.steps >= self.max_timesteps
 
         # Collect observations
         observations = {agent: self.observe(agent) for agent in self.agents}
+        # Inside your Env.step() or game loop, near the end:
+     #   print(f"[FRAME {self.steps}] "
+      #          f"Player weapon: {self.players[0].weapon} | "
+       #       f"Opponent weapon: {self.players[1].weapon}")
 
         return observations, self.rewards, self.terminated, truncated, {}
 
@@ -1126,6 +1186,25 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         self.objects['player'] = p1
         self.objects['opponent'] = p2
 
+         # Sprite to see on screen
+        spear_img = pygame.Surface((40,16), pygame.SRCALPHA)
+        spear_img.fill((255, 0, 0))
+
+        hammer_img = pygame.Surface((40,16), pygame.SRCALPHA)
+        hammer_img.fill((255, 0, 0))
+
+      #  spear_img = pygame.image.load("/content/Weapon Pool/spear.png")
+
+        self.weapon_images = { "Spear": spear_img , "Hammer": hammer_img}
+
+
+        self.weapon_pool = WeaponPool(self.weapon_images)
+        self.weapon_spawners = [
+            WeaponSpawner(self.camera, 1, self, self.weapon_pool, pos=[random.randint(-5,5),1.75], cooldown_frames=random.randint(300,500), despawn_frames=350), #martin 2
+            WeaponSpawner(self.camera, 2, self, self.weapon_pool, pos=[random.randint(-5,5),1.75], cooldown_frames=random.randint(300,500), despawn_frames=350), 
+        ]
+        self.weapon_controller = WeaponSpawnController(self.weapon_spawners)
+
         self.players += [p1, p2]
 
 
@@ -1249,7 +1328,7 @@ class PlayerInputHandler():
     def __init__(self):
         # Define the key order corresponding to the action vector:
         # Index 0: W, 1: A, 2: S, 3: D, 4: space
-        self.key_names = ["W", "A", "S", "D", "space", 'h', 'l', 'j', 'k', 'g']
+        self.key_names = ["W", "A", "S", "D", "space", 'h', 'l', 'j', 'k', 'g', 'q', 'v']
         # Previous frame key state (all start as not pressed).
         self.prev_state = {key: False for key in self.key_names}
         # The current status for each key.
@@ -2375,10 +2454,18 @@ class AttackState(PlayerObjectState):
 
     def give_move(self, move_type: "MoveType") -> None:
         self.move_type = move_type
+      
         # load json Unarmed SLight.json
         #with open('Unarmed SLight.json') as f:
         #    move_data = json.load(f)
-        move_data = self.p.env.attacks[move_type]
+        if(self.p.weapon == "Spear" and hasattr(self.p.env, "spear_attacks")):
+            move_data = self.p.env.spear_attacks[move_type] 
+        elif(self.p.weapon == "Hammer" and hasattr(self.p.env, "hammer_attacks")):
+            move_data = self.p.env.hammer_attacks[move_type] 
+        else:
+            move_data = self.p.env.attacks[move_type]
+        
+       
         self.move_manager = MoveManager(self.p, move_data)
 
     def enter(self) -> None:
@@ -2519,7 +2606,7 @@ class AnimationSprite2D(GameObject):
         if not os.path.exists(animation_folder):
             print(f"Assets folder {animation_folder} not found!")
             return
-
+        #gigi
         for category in os.listdir(animation_folder):
             category_path = os.path.join(animation_folder, category)
             if os.path.isdir(category_path):
@@ -2656,6 +2743,7 @@ class Player(GameObject):
     PLAYER_RADIUS = 10
 
     def __init__(self, env, agent_id: int, start_position=[0,0], color=[200, 200, 0, 255]):
+        self.weapon = "Punch" #martin
         self.env = env
 
         self.delta = env.dt
@@ -2847,6 +2935,7 @@ class Player(GameObject):
         self.damage_taken_this_stock = 0
         self.smoothXVel = 0
         self.target_vel = (0, 0)
+        self.weapon = "Punch"
 
     def apply_damage(self, damage_default: float, stun_dealt: int=0, velocity_dealt: Tuple[float, float]=(0,0)):
         self.damage = min(700, self.damage + damage_default)
@@ -3157,6 +3246,593 @@ class Player(GameObject):
             # (This reverses the movement direction relative to the vector toward target.)
             return current - abs(delta) * direction
 
+#### Spawning
+class SpawnerVFX(GameObject):
+    def __init__(self, camera, world_pos, animation_folder: str, scale: float = 1.0):
+        super().__init__()
+        self.camera = camera
+        self.world_pos = [float(world_pos[0]), float(world_pos[1])]
+        self.state: str = "hidden"          # "hidden" | "spawn" | "idle" | "despawn" | "pickup"
+        self.next_state: str | None = None  # None = no scheduled transition
+        self.state_timer: int = 0
+
+        self.anim = AnimationSprite2D(camera=self.camera,
+                                      scale=scale,
+                                      animation_folder=animation_folder,
+                                      agent_id=0)
+        self.anim.load_animations(animation_folder)
+        self.hide()
+
+    # -------- internals --------
+    def _steps(self, anim_name: str) -> int:
+        a = self.anim.animations.get(anim_name)
+        return int(sum(a.frames_per_step)) if a else 0
+
+    def _do_transition(self):
+        # Called by process() when a one-shot ends (or is zero-length)
+        if self.state == "hidden":
+            self.hide()
+        elif self.next_state is None:
+            # Shouldn't happen for one-shots; idle uses None intentionally.
+            pass
+        else:
+            self.state = self.next_state
+            self.state_timer = 0
+            self.next_state = None
+            self.anim.play(self.state)
+
+    # -------- public API (no direct transitions here) --------
+    def show_spawn(self):
+        self.state = "spawn"
+        self.next_state = "idle"                 # after spawn, go idle
+        self.state_timer = self._steps("spawn")
+        self.anim.play("spawn")
+
+    def show_idle(self):
+        self.state = "idle"
+        self.next_state = None                   # idle loops, no scheduled transition
+        self.state_timer = 0
+        self.anim.play("idle")
+
+    def show_despawn(self):
+        self.state = "hidden"
+
+
+    def show_pickup(self):
+        self.state = "hidden"
+
+    def hide(self):
+        self.state = "hidden"
+        self.next_state = None
+        self.state_timer = 0
+        self.anim.play(None)
+        # Reset so next play starts from frame 0
+        self.anim.current_frame_index = 0
+        self.anim.frame_timer = 0
+
+    # -------- game loop --------
+    def render(self,surface, camera):
+        if self.state == "hidden":
+            return
+
+        if self.state_timer <= 0:
+            self._do_transition()
+        else:
+            self.state_timer -= 1
+            if self.state_timer == 0:
+                self._do_transition()
+
+        self.anim.process(self.world_pos)
+
+        if self.state == "hidden":
+            return
+        camera.canvas = surface
+        self.anim.render(camera, flipped=False)
+class WeaponGO(GameObject):
+    def __init__(self, env, name, image: pygame.Surface, fall_speed: int = 0.1):
+
+        self.env = env
+        self.name = name
+        self.image = image
+        self.world_pos = [0.0, 0.0]
+        self.active = False
+        self.rect = self.image.get_rect()
+        self.fall_speed = fall_speed
+
+
+    def activate(self, camera, world_pos, current_frame):
+        print('activate',str(current_frame))
+        self.active = True
+        self.world_pos = [float(world_pos[0]), float(world_pos[1])]
+        self.spawn_frame = current_frame
+
+    def deactivate(self):
+        print('deactivate')
+        self.active = False
+
+    def physics_process(self,dt):
+      if self.active:
+          pass#self.world_pos[1] += 0#self.fall_speed
+
+    def render(self, surface, camera):
+        if self.active:
+
+            # same converter your Player uses (you called camera.gtp elsewhere)
+            sx, sy = camera.gtp((self.world_pos[0], self.world_pos[1]))
+
+           # rect = self.image.get_rect(center=(int(sx), int(sy)))
+           # surface.blit(self.image, rect) #for testing, martin 2
+
+    def frames_alive(self, current_frame):
+        return current_frame - self.spawn_frame
+
+
+class WeaponPool:
+    def __init__(self, weapon_images):
+        self.pool = []
+        self.weapon_images = weapon_images #dict : name --> pygame.Surface
+
+    def get_weapon(self, env, name):
+        for i,w in enumerate(self.pool):
+            if(not w.active and w.name == name):
+                return self.pool.pop(i)
+        weapon = WeaponGO(env, name, self.weapon_images[name])
+        return weapon
+
+    def return_weapon(self, weapon):
+        weapon.deactivate()
+        self.pool.append(weapon)
+
+class WeaponSpawner:
+    def __init__(self, camera, id, env, pool, pos, cooldown_frames, despawn_frames):
+        self.id = id
+        self.camera = camera
+        self.env = env
+        self.pool = pool
+        self.world_pos = pos
+        self.og_cooldown_frames = cooldown_frames
+        self.cooldown_frames = cooldown_frames
+        self.last_spawn_frame = -(cooldown_frames-random.randint(0,350))
+        
+        self.active_weapon = None
+        self.despawn_frames = despawn_frames
+
+        #VFX shit
+        self.vfx = SpawnerVFX(camera=self.camera, world_pos=self.world_pos, animation_folder="spawnervfx", scale=1.25) # spawn.gif, idle.gif, despawn.gif, pickup.gif
+        self.env.objects[f"SpawnerVFX{self.id}"] = self.vfx
+        self.flag = False
+
+    def try_pick_up(self,player,current_frame):
+        if(self.flag):
+         
+            PICKUP_KEY = 'q'
+            PICKUP_RADIUS = 10
+            pressed = player.input.key_status[PICKUP_KEY].held or player.input.key_status[PICKUP_KEY].just_pressed
+
+            w = self.active_weapon
+            if w is None:
+              return False
+            # --- get weapon center in WORLD units ---
+
+
+
+            #spear_img = pygame.Surface((40,16), pygame.SRCALPHA)
+            #hitbox_size = Capsule.get_hitbox_size(290//2, 320//2)#david
+            #self.hurtbox_collider = CapsuleCollider(center=(0, 0), width=hitbox_size[0], height=hitbox_size[1])
+
+            weapon_center = (float(w.world_pos[0]), float(w.world_pos[1]))
+
+            # Get weapon image size in pixels
+            img_w_px = w.image.get_width()
+            img_h_px = w.image.get_height()
+
+            # If CapsuleCollider expects **world units**, convert pixels → world units:
+            # This assumes your camera.scale_gtp() returns "pixels per world unit".
+            scale_px_per_world = getattr(self.camera, "scale_gtp", lambda: 1.0)()
+            img_w_world = img_w_px / float(scale_px_per_world)
+            img_h_world = img_h_px / float(scale_px_per_world)
+
+            # Create the capsule
+            pickup_capsule = CapsuleCollider(
+                center=weapon_center,
+                width=img_w_world,
+                height=img_h_world
+            )
+            # overlap test vs player's hurtbox (capsule-capsule)
+            collided = player.hurtbox_collider.intersects(pickup_capsule)
+
+
+            if pressed and collided:
+                print('collided',w.name)
+                
+                player.weapon = w.name
+                    # --- NEW: VFX pickup one-shot -> hidden
+                if self.vfx:
+                    self.vfx.show_pickup()
+                self.last_spawn_frame = current_frame
+                self.despawn_weapon()
+                if(player.weapon == "Spear"):
+                    player.attack_anims = {
+                        MoveType.NLIGHT : ('idle', 'spearnlightfinisher'),
+                        MoveType.DLIGHT : ('idle', 'speardlight'),
+                        MoveType.SLIGHT : ('alpunch', 'spearslight'),
+                        MoveType.NSIG   : ('alup', {28: 'spearnsig_held', 29: ('spearnsig_paper', 'spearnsig_rock', 'spearnsig_scissors')}),
+                        MoveType.DSIG   : ('idle', {26: 'speardsig_held', 27: 'speardsig_end'}),
+                        MoveType.SSIG   : ('alssig', {21: 'spearssig_held', 22: 'spearssig_end'}),
+                        MoveType.NAIR   : ('alup', 'spearnlightnofinisher'),
+                        MoveType.DAIR   : ('alpunch', 'speardair'),
+                        MoveType.SAIR   : ('alpunch', 'spearsair'),
+                        MoveType.RECOVERY : ('alup', 'spearrecovery'),
+                        MoveType.GROUNDPOUND : ('algroundpound', {16: ['speargp', 'speargp_held'], 17: 'speargp_end', 18: 'speargp_end', 19: 'speargp_end'}),
+                    }
+                elif(player.weapon == "Hammer"):
+                    
+                    player.attack_anims = {
+                        MoveType.NLIGHT : ('idle', 'hammernlightfinisher'),
+                        MoveType.DLIGHT : ('idle', 'hammerdlight'),
+                        MoveType.SLIGHT : ('alpunch', 'hammerslight'),
+                        MoveType.NSIG   : ('alup', {28: 'hammernsig_held', 29: ('hammernsig_paper', 'hammernsig_rock', 'hammernsig_scissors')}),
+                        MoveType.DSIG   : ('idle', {26: 'hammerdsig_held', 27: 'hammerdsig_end'}),
+                        MoveType.SSIG   : ('alssig', {21: 'hammerssig_held', 22: 'hammerssig_end'}),
+                        MoveType.NAIR   : ('alup', 'hammernlightnofinisher'),
+                        MoveType.DAIR   : ('alpunch', 'hammerdair'),
+                        MoveType.SAIR   : ('alpunch', 'hammersair'),
+                        MoveType.RECOVERY : ('alup', 'hammerrecovery'),
+                        MoveType.GROUNDPOUND : ('algroundpound', {16: ['hammergp', 'hammergp_held'], 17: 'hammergp_end', 18: 'hammergp_end', 19: 'hammergp_end'}),
+                    }
+                else:
+                    self.attack_anims = {
+            MoveType.NLIGHT : ('idle', 'unarmednlightfinisher'),
+            MoveType.DLIGHT : ('idle', 'unarmeddlight'),
+            MoveType.SLIGHT : ('alpunch', 'unarmedslight'),
+            MoveType.NSIG   : ('alup', {28: 'unarmednsig_held', 29: ('unarmednsig_paper', 'unarmednsig_rock', 'unarmednsig_scissors')}),
+            MoveType.DSIG   : ('idle', {26: 'unarmeddsig_held', 27: 'unarmeddsig_end'}),
+            MoveType.SSIG   : ('alssig', {21: 'unarmedssig_held', 22: 'unarmedssig_end'}),
+            MoveType.NAIR   : ('alup', 'unarmednlightnofinisher'),
+            MoveType.DAIR   : ('alpunch', 'unarmeddair'),
+            MoveType.SAIR   : ('alpunch', 'unarmedsair'),
+            MoveType.RECOVERY : ('alup', 'unarmedrecovery'),
+            MoveType.GROUNDPOUND : ('algroundpound', {16: ['unarmedgp', 'unarmedgp_held'], 17: 'unarmedgp_end', 18: 'unarmedgp_end', 19: 'unarmedgp_end'}),
+        }
+
+                return True
+            return False
+
+
+    def update(self, current_frame, number_active_spawners):
+
+        if self.active_weapon and self.active_weapon.active:
+            if(current_frame - self.last_spawn_frame >= self.vfx._steps("spawn")):
+                self.flag = True
+            #Despawn if alive too long
+            if self.active_weapon.frames_alive(current_frame) > self.despawn_frames:
+                 # --- NEW: VFX despawn one-shot -> hidden
+                if self.vfx:
+                    self.vfx.show_despawn()
+                self.despawn_weapon()
+            return
+        #spawn if cooldown is over
+        if current_frame - self.last_spawn_frame >= self.cooldown_frames:
+            if(number_active_spawners <= 2): #kaden
+                self.spawn_weapon(current_frame)
+                self.flag = False
+
+    def spawn_weapon(self, current_frame):#martin
+        self.world_pos = [random.randint(-5,5),1.75]
+        if random.randint(0, 1) == 0:
+            name = "Spear"
+        else:
+            name = "Hammer"
+        print(name)
+        self.active_weapon = self.pool.get_weapon(self.env, name)
+        self.active_weapon.activate(self.camera, self.world_pos,current_frame)
+
+        self.last_spawn_frame = current_frame
+
+        key = self.active_weapon.name+str(self.id)
+        self.env.objects[key] = self.active_weapon
+
+         # --- NEW: VFX spawn -> will auto-transition to idle
+        if self.vfx:
+            self.vfx.world_pos = (float(self.world_pos[0]), float(self.world_pos[1]))
+            self.vfx.show_spawn()
+
+    def despawn_weapon(self):
+        if not self.active_weapon:
+            return
+        self.cooldown_frames = random.randint(int(self.og_cooldown_frames*0.5),int(self.og_cooldown_frames*1.5))
+        self.pool.return_weapon(self.active_weapon)
+        key = self.active_weapon.name+str(self.id)
+        self.env.objects.pop(key,None)
+
+        self.active_weapon = None
+
+
+
+
+
+class WeaponSpawnController:
+    def __init__(self, spawners: list[WeaponSpawner]):
+        self.spawners = spawners
+
+    def update(self, current_frame: int):
+        for spawner in self.spawners:
+            spawner.update(current_frame,len(self.spawners))
+        # prune finished DroppedWeaponSpawner instances
+        self.spawners = [s for s in self.spawners if not (hasattr(s, "done") and s.done)]
+
+
+    def try_pick_up_all(self, players: List[Player],current_frame):
+       # print(len(self.spawners)) #martin
+        for spawner in self.spawners:
+
+            for p in players:
+                if not isinstance(p.state, AttackState) and not issubclass(p.state.__class__, AttackState):
+                    spawner.try_pick_up(p, current_frame)
+
+
+
+import random
+
+class DroppedWeaponSpawner(WeaponSpawner):
+    """
+    One-shot spawner for a specific weapon (e.g., when a player 'drops' theirs).
+    - Spawns immediately once with a fixed weapon_name.
+    - Has its own lifetime (despawn after N frames).
+    - Does NOT respawn after pickup/despawn.
+    - Uses its own VFX folder/name so it can look different.
+    """
+    
+    def __init__(
+        self,
+        camera,
+        id,
+        env,
+        pool,
+        pos,
+        weapon_name: str,
+        lifetime_frames: int = 300,
+        vfx_folder: str = "-1",
+        scale: float = 1.0
+    ):
+        # Call your original WeaponSpawner __init__ with the same signature it already has
+        super().__init__(camera, id, env, pool, pos, cooldown_frames=10**9, despawn_frames=lifetime_frames)
+
+        # our specific settings
+        self.weapon_name = str(weapon_name)
+        self._spawned_once = False
+        self.done = False  # controller can prune completed droppeds
+
+        # Replace VFX with a distinct one (optional)
+
+        if weapon_name == "Spear":
+            vfx_folder = "spearvfx"
+        elif weapon_name == "Hammer":
+            vfx_folder = "hammervfx"
+
+        try:
+            self.env.objects.pop(f"SpawnerVFX{self.id}", None)
+        except Exception:
+            pass
+        self.vfx = SpawnerVFX(
+            camera=self.camera,
+            world_pos=self.world_pos,
+            animation_folder=vfx_folder,
+            scale=scale
+        )
+        self.env.objects[f"DroppedVFX{self.id}"] = self.vfx
+
+
+
+        # Use a unique registry key for the actual weapon object this spawner creates
+        self._weapon_obj_key = f"Dropped{self.weapon_name}{self.id}"
+
+    # --- override to spawn our fixed weapon and register under our own key ---
+    def spawn_weapon(self, current_frame):
+        weapon = self.pool.get_weapon(self.env, self.weapon_name)
+        weapon.activate(self.camera, self.world_pos, current_frame)
+        self.active_weapon = weapon
+        self.last_spawn_frame = current_frame
+        self.env.objects[self._weapon_obj_key] = weapon
+
+        if self.vfx:
+            self.vfx.world_pos = (float(self.world_pos[0]), float(self.world_pos[1]))
+            self.vfx.show_spawn()
+
+    # --- override despawn to remove our custom key ---
+    def despawn_weapon(self):
+        if not self.active_weapon:
+            return
+        self.pool.return_weapon(self.active_weapon)
+        self.active_weapon = None
+        self.env.objects.pop(self._weapon_obj_key, None)
+
+    # --- one-shot update: spawn once, then wait for pickup or lifetime expiry ---
+    def update(self, current_frame, number_active_spawners):
+        if not self._spawned_once:
+            self.spawn_weapon(current_frame)
+            self._spawned_once = True
+            return
+
+        # weapon alive too long → despawn and finish
+        if self.active_weapon and self.active_weapon.active:
+
+          #  print(self.despawn_frames)
+
+            if self.active_weapon.frames_alive(current_frame) >= self.despawn_frames:
+                if self.vfx:
+                    self.vfx.show_despawn()
+
+                self.despawn_weapon()
+                self.done = True
+            return
+
+        # if no active weapon (picked up already), we're done
+        if self._spawned_once and (self.active_weapon is None or not self.active_weapon.active):
+            self.done = True
+
+    def try_pick_up(self,player, current_frame):
+        PICKUP_KEY = 'q'
+        PICKUP_RADIUS = 10
+        pressed = player.input.key_status[PICKUP_KEY].held or player.input.key_status[PICKUP_KEY].just_pressed
+
+        w = self.active_weapon
+        if w is None:
+          return False
+        # --- get weapon center in WORLD units ---
+
+
+
+        #spear_img = pygame.Surface((40,16), pygame.SRCALPHA)
+        #hitbox_size = Capsule.get_hitbox_size(290//2, 320//2)#david
+        #self.hurtbox_collider = CapsuleCollider(center=(0, 0), width=hitbox_size[0], height=hitbox_size[1])
+
+        weapon_center = (float(w.world_pos[0]), float(w.world_pos[1]))
+
+        # Get weapon image size in pixels
+        img_w_px = w.image.get_width()
+        img_h_px = w.image.get_height()
+
+        # If CapsuleCollider expects **world units**, convert pixels → world units:
+        # This assumes your camera.scale_gtp() returns "pixels per world unit".
+        scale_px_per_world = getattr(self.camera, "scale_gtp", lambda: 1.0)()
+        img_w_world = img_w_px / float(scale_px_per_world)
+        img_h_world = img_h_px / float(scale_px_per_world)
+
+        # Create the capsule
+        pickup_capsule = CapsuleCollider(
+            center=weapon_center,
+            width=img_w_world,
+            height=img_h_world
+        )
+        # overlap test vs player's hurtbox (capsule-capsule)
+        collided = player.hurtbox_collider.intersects(pickup_capsule)
+
+
+        if pressed and collided:
+            print('pickup',w.name)
+            player.weapon = w.name
+                # --- NEW: VFX pickup one-shot -> hidden
+            if self.vfx:
+                self.vfx.show_pickup()
+            self.despawn_weapon()
+            if(player.weapon == "Spear"):
+                player.attack_anims = {
+                    MoveType.NLIGHT : ('idle', 'spearnlightfinisher'),
+                    MoveType.DLIGHT : ('idle', 'speardlight'),
+                    MoveType.SLIGHT : ('alpunch', 'spearslight'),
+                    MoveType.NSIG   : ('alup', {28: 'spearnsig_held', 29: ('spearnsig_paper', 'spearnsig_rock', 'spearnsig_scissors')}),
+                    MoveType.DSIG   : ('idle', {26: 'speardsig_held', 27: 'speardsig_end'}),
+                    MoveType.SSIG   : ('alssig', {21: 'spearssig_held', 22: 'spearssig_end'}),
+                    MoveType.NAIR   : ('alup', 'spearnlightnofinisher'),
+                    MoveType.DAIR   : ('alpunch', 'speardair'),
+                    MoveType.SAIR   : ('alpunch', 'spearsair'),
+                    MoveType.RECOVERY : ('alup', 'spearrecovery'),
+                    MoveType.GROUNDPOUND : ('algroundpound', {16: ['speargp', 'speargp_held'], 17: 'speargp_end', 18: 'speargp_end', 19: 'speargp_end'}),
+                }
+            elif(player.weapon == "Hammer"):
+                
+                player.attack_anims = {
+                    MoveType.NLIGHT : ('idle', 'hammernlightfinisher'),
+                    MoveType.DLIGHT : ('idle', 'hammerdlight'),
+                    MoveType.SLIGHT : ('alpunch', 'hammerslight'),
+                    MoveType.NSIG   : ('alup', {28: 'hammernsig_held', 29: ('hammernsig_paper', 'hammernsig_rock', 'hammernsig_scissors')}),
+                    MoveType.DSIG   : ('idle', {26: 'hammerdsig_held', 27: 'hammerdsig_end'}),
+                    MoveType.SSIG   : ('alssig', {21: 'hammerssig_held', 22: 'hammerssig_end'}),
+                    MoveType.NAIR   : ('alup', 'hammernlightnofinisher'),
+                    MoveType.DAIR   : ('alpunch', 'hammerdair'),
+                    MoveType.SAIR   : ('alpunch', 'hammersair'),
+                    MoveType.RECOVERY : ('alup', 'hammerrecovery'),
+                    MoveType.GROUNDPOUND : ('algroundpound', {16: ['hammergp', 'hammergp_held'], 17: 'hammergp_end', 18: 'hammergp_end', 19: 'hammergp_end'}),
+                }
+            else:
+                self.attack_anims = {
+        MoveType.NLIGHT : ('idle', 'unarmednlightfinisher'),
+        MoveType.DLIGHT : ('idle', 'unarmeddlight'),
+        MoveType.SLIGHT : ('alpunch', 'unarmedslight'),
+        MoveType.NSIG   : ('alup', {28: 'unarmednsig_held', 29: ('unarmednsig_paper', 'unarmednsig_rock', 'unarmednsig_scissors')}),
+        MoveType.DSIG   : ('idle', {26: 'unarmeddsig_held', 27: 'unarmeddsig_end'}),
+        MoveType.SSIG   : ('alssig', {21: 'unarmedssig_held', 22: 'unarmedssig_end'}),
+        MoveType.NAIR   : ('alup', 'unarmednlightnofinisher'),
+        MoveType.DAIR   : ('alpunch', 'unarmeddair'),
+        MoveType.SAIR   : ('alpunch', 'unarmedsair'),
+        MoveType.RECOVERY : ('alup', 'unarmedrecovery'),
+        MoveType.GROUNDPOUND : ('algroundpound', {16: ['unarmedgp', 'unarmedgp_held'], 17: 'unarmedgp_end', 18: 'unarmedgp_end', 19: 'unarmedgp_end'}),
+    }
+            return True
+        return False
+
+    def try_drop(wb):#martin
+           
+        if hasattr(wb, "weapon_controller"):
+            # lazy unique id
+            if not hasattr(wb, "_next_spawner_id"):
+                max_id = 0
+                for s in getattr(wb.weapon_controller, "spawners", []):
+                    try:
+                        max_id = max(max_id, int(getattr(s, "id", 0)))
+                    except Exception:
+                        pass
+                wb._next_spawner_id = max_id + 1
+
+            for idx, player in enumerate(wb.players):
+                if not isinstance(player.state, AttackState) and not issubclass(player.state.__class__, AttackState):
+                    v_pressed = False
+                    if hasattr(player, "input") and 'v' in player.input.key_status:
+                        v_pressed = player.input.key_status['v'].just_pressed
+
+                    current_weapon = getattr(player, "weapon", None)
+                    if not (v_pressed and current_weapon and str(current_weapon).lower() != "punch"):
+                        continue
+
+                    # ensure we can render it
+                    if current_weapon not in wb.weapon_images:
+                        print(f"[WARN] No image for '{current_weapon}' in weapon_images; skipping dropped spawner.")
+                        continue
+
+                    # simple player world pos (no class edits)
+                    def _player_world_pos(p):
+                        if hasattr(p, "world_pos"):
+                            return [float(p.world_pos[0]), float(p.world_pos[1])]
+                        if hasattr(p, "body"):
+                            return [float(p.body.position.x), float(p.body.position.y)]
+                        return [0.0, 0.0]
+
+                    pos = _player_world_pos(player)
+                    new_id = wb._next_spawner_id
+                    wb._next_spawner_id += 1
+
+                    dropped = DroppedWeaponSpawner(
+                        camera=wb.camera,
+                        id=new_id,
+                        env=wb,
+                        pool=wb.weapon_pool,
+                        pos=pos,
+                        weapon_name=current_weapon,
+                        lifetime_frames=250, #caleb             # tweak as desired
+                        vfx_folder="", # distinct look for dropped
+                        scale=1.0
+                    )
+                    wb.weapon_controller.spawners.append(dropped)
+
+                    print(f"[FRAME {wb.steps}] Player {idx} dropped '{current_weapon}' spawner at {pos} (id {new_id}).")
+
+                    # player loses weapon → back to Punch
+                    player.weapon = "Punch"
+                    player.attack_anims = {
+            MoveType.NLIGHT : ('idle', 'unarmednlightfinisher'),
+            MoveType.DLIGHT : ('idle', 'unarmeddlight'),
+            MoveType.SLIGHT : ('alpunch', 'unarmedslight'),
+            MoveType.NSIG   : ('alup', {28: 'unarmednsig_held', 29: ('unarmednsig_paper', 'unarmednsig_rock', 'unarmednsig_scissors')}),
+            MoveType.DSIG   : ('idle', {26: 'unarmeddsig_held', 27: 'unarmeddsig_end'}),
+            MoveType.SSIG   : ('alssig', {21: 'unarmedssig_held', 22: 'unarmedssig_end'}),
+            MoveType.NAIR   : ('alup', 'unarmednlightnofinisher'),
+            MoveType.DAIR   : ('alpunch', 'unarmeddair'),
+            MoveType.SAIR   : ('alpunch', 'unarmedsair'),
+            MoveType.RECOVERY : ('alup', 'unarmedrecovery'),
+            MoveType.GROUNDPOUND : ('algroundpound', {16: ['unarmedgp', 'unarmedgp_held'], 17: 'unarmedgp_end', 18: 'unarmedgp_end', 19: 'unarmedgp_end'}),
+        }
+                    
 
 # ### Hitbox and Hurtbox
 
