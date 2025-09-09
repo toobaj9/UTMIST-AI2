@@ -3070,7 +3070,7 @@ class Player(GameObject):
 
         # draw circle
         cc = (227, 138, 14) if self.agent_id == 0 else (18, 131, 201)
-        screen_pos = camera.gtp((int(position[0]), int(position[1])-1))
+        screen_pos = camera.gtp((position[0], position[1]-1))
         pygame.draw.circle(camera.canvas, cc, screen_pos, camera.scale_gtp() * 0.25)
 
 
