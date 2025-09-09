@@ -1503,6 +1503,8 @@ class InAirState(PlayerObjectState):
             self.jump_timer = self.p.jump_cooldown
             self.jumps_left -= 1
 
+        self.jump_timer = max(0, self.jump_timer-1)
+        
         # Handle dodge
         if self.p.input.key_status['l'].just_pressed and self.dodge_cooldown <= 0:
             self.dodge_cooldown = self.p.air_dodge_cooldown
@@ -1773,17 +1775,22 @@ class StunState(InAirState):
         #print(self.p.body.velocity.x, vel_x)
         self.p.body.velocity = pymunk.Vec2d(vel_x, self.p.body.velocity.y)
 
-        if self.stun_frames > 0: return None
-
-        if self.p.is_on_floor():
-            return GroundState.get_ground_state(self.p)
+        # If still in stun
+        if self.stun_frames > 0:
+            if self.p.is_on_floor() and self.p.body.velocity.y > 0:
+                # Bounce
+                self.p.body.velocity = pymunk.Vec2d(vel_x, -self.p.body.velocity.y * self.p.bounce_coef)
+            return None
         else:
-            in_air = self.p.states['in_air']
-            if hasattr(self, 'jumps_left'):
-                in_air.jumps_left = max(1, self.jumps_left)
+            if self.p.is_on_floor():
+                return GroundState.get_ground_state(self.p)
             else:
-                in_air.jumps_left = 1
-            return in_air
+                in_air = self.p.states['in_air']
+                if hasattr(self, 'jumps_left'):
+                    in_air.jumps_left = max(1, self.jumps_left)
+                else:
+                    in_air.jumps_left = 1
+                return in_air
 
 
     def animate_player(self, camera) -> None:
@@ -2817,6 +2824,7 @@ class Player(GameObject):
         self.max_fall_speed = 12
         self.fast_fall_ease = 14.25 / self.env.fps
         self.in_air_ease = 10.75 / self.env.fps
+        self.bounce_coef = 0.7
         self.run_speed = 8
         self.dash_speed = 10
         self.backdash_speed = 4
@@ -2905,7 +2913,13 @@ class Player(GameObject):
         self.damage_taken_this_frame += damage_default
         self.state.stunned(stun_dealt)
         scale = (1.024 / 320.0) * 18 # 0.165
-        self.damage_velocity = (velocity_dealt[0] * scale, velocity_dealt[1] * scale)
+
+        if self.is_on_floor() and velocity_dealt[1] > 0:
+            # Bounce
+            velocity_dealt_y = -velocity_dealt[1] * self.bounce_coef
+        else:
+            velocity_dealt_y = velocity_dealt[1]
+        self.damage_velocity = (velocity_dealt[0] * scale, velocity_dealt_y * scale)
 
         self.opponent.damage_done += damage_default
 
