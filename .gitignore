@@ -4,6 +4,7 @@
 /attacks/*
 attacks.zip
 assets.zip
+.venv
 
 /checkpoints/*
 
