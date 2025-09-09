@@ -2813,8 +2813,7 @@ class Player(GameObject):
         self.attack_anims = {
             MoveType.NLIGHT : ('idle', 'unarmednlightfinisher'),
             MoveType.DLIGHT : ('idle', 'unarmeddlight'),
-            #MoveType.SLIGHT : ('alpunch', 'unarmedslight'),
-            MoveType.SLIGHT : ('alpunch', 'hammerslight'),
+            MoveType.SLIGHT : ('alpunch', 'unarmedslight'),
             MoveType.NSIG   : ('alup', {28: 'unarmednsig_held', 29: ('unarmednsig_paper', 'unarmednsig_rock', 'unarmednsig_scissors')}),
             MoveType.DSIG   : ('idle', {26: 'unarmeddsig_held', 27: 'unarmeddsig_end'}),
             MoveType.SSIG   : ('alssig', {21: 'unarmedssig_held', 22: 'unarmedssig_end'}),
@@ -3195,6 +3194,9 @@ class Player(GameObject):
         light_move = (not heavy_move) and self.input.key_status['j'].held  # light move if not heavy and key 'j' is held
         throw_move = (not heavy_move) and (not light_move) and self.input.key_status['h'].held  # throw if pickup key 'h' is held
 
+        # patch: throw move is handled elsewhere
+        throw_move = False
+
         # Determine directional keys:
         left_key = self.input.key_status["A"].held            # left key (A)
         right_key = self.input.key_status["D"].held           # right key (D)
@@ -3406,13 +3408,13 @@ class WeaponGO(GameObject):
 
 
     def activate(self, camera, world_pos, current_frame):
-        print('activate',str(current_frame))
+        #print('activate', str(current_frame))
         self.active = True
         self.world_pos = [float(world_pos[0]), float(world_pos[1])]
         self.spawn_frame = current_frame
 
     def deactivate(self):
-        print('deactivate')
+        #print('deactivate')
         self.active = False
 
     def physics_process(self,dt):
@@ -3471,7 +3473,6 @@ class WeaponSpawner:
         if not self.flag: return None
         PICKUP_KEY = 'h'
         pressed = player.input.key_status[PICKUP_KEY].held or player.input.key_status[PICKUP_KEY].just_pressed
-
         w = self.active_weapon
         if w is None: return False 
         # --- get weapon center in WORLD units ---
@@ -3503,9 +3504,9 @@ class WeaponSpawner:
         # overlap test vs player's hurtbox (capsule-capsule)
         collided = player.hurtbox_collider.intersects(pickup_capsule)
 
-
+        
         if not pressed or not collided: return False
-        print('collided', w.name)
+        print(f'collided {w.name}, {pressed}, {collided}')
         
         player.weapon = w.name
             # --- NEW: VFX pickup one-shot -> hidden
@@ -3563,7 +3564,7 @@ class WeaponSpawner:
     def update(self, current_frame, number_active_spawners):
 
         if self.active_weapon and self.active_weapon.active:
-            if(current_frame - self.last_spawn_frame >= self.vfx._steps("spawn")):
+            if current_frame - self.last_spawn_frame >= self.vfx._steps("spawn"):
                 self.flag = True
             #Despawn if alive too long
             if self.active_weapon.frames_alive(current_frame) > self.despawn_frames:
@@ -3574,7 +3575,7 @@ class WeaponSpawner:
             return
         #spawn if cooldown is over
         if current_frame - self.last_spawn_frame >= self.cooldown_frames:
-            if(number_active_spawners <= 2): #kaden
+            if number_active_spawners <= 2: #kaden
                 self.spawn_weapon(current_frame)
                 self.flag = False
 
@@ -3584,7 +3585,7 @@ class WeaponSpawner:
             name = "Spear"
         else:
             name = "Hammer"
-        print(name)
+        #print(name)
         self.active_weapon = self.pool.get_weapon(self.env, name)
         self.active_weapon.activate(self.camera, self.world_pos,current_frame)
 
@@ -3607,10 +3608,6 @@ class WeaponSpawner:
         self.env.objects.pop(key,None)
 
         self.active_weapon = None
-
-
-
-
 
 class WeaponSpawnController:
     def __init__(self, spawners: list[WeaponSpawner]):
@@ -3738,8 +3735,7 @@ class DroppedWeaponSpawner(WeaponSpawner):
         pressed = player.input.key_status[PICKUP_KEY].held or player.input.key_status[PICKUP_KEY].just_pressed
 
         w = self.active_weapon
-        if w is None:
-          return False
+        if w is None: return False
         # --- get weapon center in WORLD units ---
 
 
@@ -3763,65 +3759,65 @@ class DroppedWeaponSpawner(WeaponSpawner):
         # Create the capsule
         pickup_capsule = CapsuleCollider(
             center=weapon_center,
-            width=img_w_world,
+            width=1.5,
             height=img_h_world
         )
         # overlap test vs player's hurtbox (capsule-capsule)
         collided = player.hurtbox_collider.intersects(pickup_capsule)
 
 
-        if pressed and collided:
-            print('pickup',w.name)
-            player.weapon = w.name
-                # --- NEW: VFX pickup one-shot -> hidden
-            if self.vfx:
-                self.vfx.show_pickup()
-            self.despawn_weapon()
-            if(player.weapon == "Spear"):
-                player.attack_anims = {
-                    MoveType.NLIGHT : ('idle', 'spearnlightfinisher'),
-                    MoveType.DLIGHT : ('idle', 'speardlight'),
-                    MoveType.SLIGHT : ('alpunch', 'spearslight'),
-                    MoveType.NSIG   : ('alup', {28: 'spearnsig_held', 29: ('spearnsig_paper', 'spearnsig_rock', 'spearnsig_scissors')}),
-                    MoveType.DSIG   : ('idle', {26: 'speardsig_held', 27: 'speardsig_end'}),
-                    MoveType.SSIG   : ('alssig', {21: 'spearssig_held', 22: 'spearssig_end'}),
-                    MoveType.NAIR   : ('alup', 'spearnlightnofinisher'),
-                    MoveType.DAIR   : ('alpunch', 'speardair'),
-                    MoveType.SAIR   : ('alpunch', 'spearsair'),
-                    MoveType.RECOVERY : ('alup', 'spearrecovery'),
-                    MoveType.GROUNDPOUND : ('algroundpound', {16: ['speargp', 'speargp_held'], 17: 'speargp_end', 18: 'speargp_end', 19: 'speargp_end'}),
-                }
-            elif(player.weapon == "Hammer"):
-                
-                player.attack_anims = {
-                    MoveType.NLIGHT : ('idle', 'hammernlightfinisher'),
-                    MoveType.DLIGHT : ('idle', 'hammerdlight'),
-                    MoveType.SLIGHT : ('alpunch', 'hammerslight'),
-                    MoveType.NSIG   : ('alup', {28: 'hammernsig_held', 29: ('hammernsig_paper', 'hammernsig_rock', 'hammernsig_scissors')}),
-                    MoveType.DSIG   : ('idle', {26: 'hammerdsig_held', 27: 'hammerdsig_end'}),
-                    MoveType.SSIG   : ('alssig', {21: 'hammerssig_held', 22: 'hammerssig_end'}),
-                    MoveType.NAIR   : ('alup', 'hammernlightnofinisher'),
-                    MoveType.DAIR   : ('alpunch', 'hammerdair'),
-                    MoveType.SAIR   : ('alpunch', 'hammersair'),
-                    MoveType.RECOVERY : ('alup', 'hammerrecovery'),
-                    MoveType.GROUNDPOUND : ('algroundpound', {16: ['hammergp', 'hammergp_held'], 17: 'hammergp_end', 18: 'hammergp_end', 19: 'hammergp_end'}),
-                }
-            else:
-                self.attack_anims = {
-        MoveType.NLIGHT : ('idle', 'unarmednlightfinisher'),
-        MoveType.DLIGHT : ('idle', 'unarmeddlight'),
-        MoveType.SLIGHT : ('alpunch', 'unarmedslight'),
-        MoveType.NSIG   : ('alup', {28: 'unarmednsig_held', 29: ('unarmednsig_paper', 'unarmednsig_rock', 'unarmednsig_scissors')}),
-        MoveType.DSIG   : ('idle', {26: 'unarmeddsig_held', 27: 'unarmeddsig_end'}),
-        MoveType.SSIG   : ('alssig', {21: 'unarmedssig_held', 22: 'unarmedssig_end'}),
-        MoveType.NAIR   : ('alup', 'unarmednlightnofinisher'),
-        MoveType.DAIR   : ('alpunch', 'unarmeddair'),
-        MoveType.SAIR   : ('alpunch', 'unarmedsair'),
-        MoveType.RECOVERY : ('alup', 'unarmedrecovery'),
-        MoveType.GROUNDPOUND : ('algroundpound', {16: ['unarmedgp', 'unarmedgp_held'], 17: 'unarmedgp_end', 18: 'unarmedgp_end', 19: 'unarmedgp_end'}),
-    }
-            return True
-        return False
+        if not pressed or not collided: return False
+
+        print(f'pickup {w.name}, {pressed}, {collided}')
+        player.weapon = w.name
+            # --- NEW: VFX pickup one-shot -> hidden
+        if self.vfx:
+            self.vfx.show_pickup()
+        self.despawn_weapon()
+        if player.weapon == "Spear":
+            player.attack_anims = {
+                MoveType.NLIGHT : ('idle', 'spearnlightfinisher'),
+                MoveType.DLIGHT : ('idle', 'speardlight'),
+                MoveType.SLIGHT : ('alpunch', 'spearslight'),
+                MoveType.NSIG   : ('alup', {28: 'spearnsig_held', 29: ('spearnsig_paper', 'spearnsig_rock', 'spearnsig_scissors')}),
+                MoveType.DSIG   : ('idle', {26: 'speardsig_held', 27: 'speardsig_end'}),
+                MoveType.SSIG   : ('alssig', {21: 'spearssig_held', 22: 'spearssig_end'}),
+                MoveType.NAIR   : ('alup', 'spearnlightnofinisher'),
+                MoveType.DAIR   : ('alpunch', 'speardair'),
+                MoveType.SAIR   : ('alpunch', 'spearsair'),
+                MoveType.RECOVERY : ('alup', 'spearrecovery'),
+                MoveType.GROUNDPOUND : ('algroundpound', {16: ['speargp', 'speargp_held'], 17: 'speargp_end', 18: 'speargp_end', 19: 'speargp_end'}),
+            }
+        elif player.weapon == "Hammer":
+            player.attack_anims = {
+                MoveType.NLIGHT : ('idle', 'hammernlightfinisher'),
+                MoveType.DLIGHT : ('idle', 'hammerdlight'),
+                MoveType.SLIGHT : ('alpunch', 'hammerslight'),
+                MoveType.NSIG   : ('alup', {28: 'hammernsig_held', 29: ('hammernsig_paper', 'hammernsig_rock', 'hammernsig_scissors')}),
+                MoveType.DSIG   : ('idle', {26: 'hammerdsig_held', 27: 'hammerdsig_end'}),
+                MoveType.SSIG   : ('alssig', {21: 'hammerssig_held', 22: 'hammerssig_end'}),
+                MoveType.NAIR   : ('alup', 'hammernlightnofinisher'),
+                MoveType.DAIR   : ('alpunch', 'hammerdair'),
+                MoveType.SAIR   : ('alpunch', 'hammersair'),
+                MoveType.RECOVERY : ('alup', 'hammerrecovery'),
+                MoveType.GROUNDPOUND : ('algroundpound', {16: ['hammergp', 'hammergp_held'], 17: 'hammergp_end', 18: 'hammergp_end', 19: 'hammergp_end'}),
+            }
+        else:
+            player.attack_anims = {
+                MoveType.NLIGHT : ('idle', 'unarmednlightfinisher'),
+                MoveType.DLIGHT : ('idle', 'unarmeddlight'),
+                MoveType.SLIGHT : ('alpunch', 'unarmedslight'),
+                MoveType.NSIG   : ('alup', {28: 'unarmednsig_held', 29: ('unarmednsig_paper', 'unarmednsig_rock', 'unarmednsig_scissors')}),
+                MoveType.DSIG   : ('idle', {26: 'unarmeddsig_held', 27: 'unarmeddsig_end'}),
+                MoveType.SSIG   : ('alssig', {21: 'unarmedssig_held', 22: 'unarmedssig_end'}),
+                MoveType.NAIR   : ('alup', 'unarmednlightnofinisher'),
+                MoveType.DAIR   : ('alpunch', 'unarmeddair'),
+                MoveType.SAIR   : ('alpunch', 'unarmedsair'),
+                MoveType.RECOVERY : ('alup', 'unarmedrecovery'),
+                MoveType.GROUNDPOUND : ('algroundpound', {16: ['unarmedgp', 'unarmedgp_held'], 17: 'unarmedgp_end', 18: 'unarmedgp_end', 19: 'unarmedgp_end'}),
+            }
+        return True
+        
 
     def try_drop(wb):#martin
            
@@ -3881,18 +3877,18 @@ class DroppedWeaponSpawner(WeaponSpawner):
                     # player loses weapon → back to Punch
                     player.weapon = "Punch"
                     player.attack_anims = {
-            MoveType.NLIGHT : ('idle', 'unarmednlightfinisher'),
-            MoveType.DLIGHT : ('idle', 'unarmeddlight'),
-            MoveType.SLIGHT : ('alpunch', 'unarmedslight'),
-            MoveType.NSIG   : ('alup', {28: 'unarmednsig_held', 29: ('unarmednsig_paper', 'unarmednsig_rock', 'unarmednsig_scissors')}),
-            MoveType.DSIG   : ('idle', {26: 'unarmeddsig_held', 27: 'unarmeddsig_end'}),
-            MoveType.SSIG   : ('alssig', {21: 'unarmedssig_held', 22: 'unarmedssig_end'}),
-            MoveType.NAIR   : ('alup', 'unarmednlightnofinisher'),
-            MoveType.DAIR   : ('alpunch', 'unarmeddair'),
-            MoveType.SAIR   : ('alpunch', 'unarmedsair'),
-            MoveType.RECOVERY : ('alup', 'unarmedrecovery'),
-            MoveType.GROUNDPOUND : ('algroundpound', {16: ['unarmedgp', 'unarmedgp_held'], 17: 'unarmedgp_end', 18: 'unarmedgp_end', 19: 'unarmedgp_end'}),
-        }
+                        MoveType.NLIGHT : ('idle', 'unarmednlightfinisher'),
+                        MoveType.DLIGHT : ('idle', 'unarmeddlight'),
+                        MoveType.SLIGHT : ('alpunch', 'unarmedslight'),
+                        MoveType.NSIG   : ('alup', {28: 'unarmednsig_held', 29: ('unarmednsig_paper', 'unarmednsig_rock', 'unarmednsig_scissors')}),
+                        MoveType.DSIG   : ('idle', {26: 'unarmeddsig_held', 27: 'unarmeddsig_end'}),
+                        MoveType.SSIG   : ('alssig', {21: 'unarmedssig_held', 22: 'unarmedssig_end'}),
+                        MoveType.NAIR   : ('alup', 'unarmednlightnofinisher'),
+                        MoveType.DAIR   : ('alpunch', 'unarmeddair'),
+                        MoveType.SAIR   : ('alpunch', 'unarmedsair'),
+                        MoveType.RECOVERY : ('alup', 'unarmedrecovery'),
+                        MoveType.GROUNDPOUND : ('algroundpound', {16: ['unarmedgp', 'unarmedgp_held'], 17: 'unarmedgp_end', 18: 'unarmedgp_end', 19: 'unarmedgp_end'}),
+                    }
                     
 
 # ### Hitbox and Hurtbox
@@ -4231,6 +4227,3 @@ class Particle(GameObject):
             screen_pos = (0,0)
             #canvas.blit(self.frames[self.current_frame_index], screen_pos)
             self.draw_image(canvas, self.frames[self.current_frame_index], self.position, 2, camera)
-
-
-
