@@ -1,0 +1,52 @@
+name: RL Tournament Validation Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: "GitHub username of the participant (owner of the fork)"
+        required: true
+        type: string
+
+jobs:
+  validate:
+    name: Validate Agent and Submit
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.10-slim
+
+    steps:
+      # === Step 0: Install dependencies (git + unzip) ===
+      - name: Install required tools
+        run: |
+          apt-get update
+          apt-get install -y git unzip
+
+      # === Step 1: Clone the participant's fork (HTTPS) ===
+      - name: Clone Participant Submission
+        run: |
+          USERNAME="${{ github.event.inputs.username }}"
+          REPO="https://github.com/${USERNAME}/UTMIST-AI2.git"
+          BRANCH="main"
+          
+          echo "Cloning submission for: $USERNAME"
+          git clone --branch "$BRANCH" "$REPO" submission
+
+      # === Step 2: Install submission dependencies ===
+      - name: Install dependencies
+        working-directory: submission
+        run: |
+          chmod +x install.sh
+          ./install.sh
+
+      # === Step 3: Run validation ===
+      - name: Run validation
+        working-directory: submission
+        run: python validate.py
+
+      # === Step 4: Upload results as an artifact ===
+      - name: Upload Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ github.event.inputs.username }}
+          path: submission/results/
