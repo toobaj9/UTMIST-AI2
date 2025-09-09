@@ -2350,7 +2350,7 @@ class Power():
                                 self.p.body.velocity = pymunk.Vec2d(on_hit_vel[0], on_hit_vel[1])
                         self.hit_anyone = True
                         force_magnitude = (current_cast.fixed_force +
-                                            current_cast.variable_force * hit_agent.damage * 0.08)
+                                            current_cast.variable_force * hit_agent.damage * 0.05)
                                 # 02622
                         if hit_agent not in hit_agents:
                             if self.damage_over_life_of_hitbox:
