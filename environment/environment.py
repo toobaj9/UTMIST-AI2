@@ -2343,7 +2343,8 @@ class Power():
                                 self.p.body.velocity = pymunk.Vec2d(on_hit_vel[0], on_hit_vel[1])
                         self.hit_anyone = True
                         force_magnitude = (current_cast.fixed_force +
-                                            current_cast.variable_force * hit_agent.damage * 0.02622)
+                                            current_cast.variable_force * hit_agent.damage * 0.08)
+                                # 02622
                         if hit_agent not in hit_agents:
                             if self.damage_over_life_of_hitbox:
                                 hit_agent.apply_damage(damage_to_deal, self.stun_time,
@@ -2903,7 +2904,7 @@ class Player(GameObject):
         self.damage_taken_total += damage_default
         self.damage_taken_this_frame += damage_default
         self.state.stunned(stun_dealt)
-        scale = (1.024 / 320.0) * 12 # 0.165
+        scale = (1.024 / 320.0) * 18 # 0.165
         self.damage_velocity = (velocity_dealt[0] * scale, velocity_dealt[1] * scale)
 
         self.opponent.damage_done += damage_default
