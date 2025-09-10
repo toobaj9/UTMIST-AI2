@@ -1,7 +1,7 @@
 import skvideo
 import skvideo.io
 from IPython.display import Video
-from agent import RecurrentPPOAgent, BasedAgent, UserInputAgent, run_match, CameraResolution,  gen_reward_manager
+from agent import RecurrentPPOAgent, BasedAgent, UserInputAgent, ConstantAgent, run_match, CameraResolution,  gen_reward_manager
 
 def get_model(experiment_dir, name):
     if name == 'based':
@@ -12,10 +12,11 @@ def get_model(experiment_dir, name):
 
 reward_manager = gen_reward_manager()
 
-experiment_dir_1 = input('Model experiment directory name (e.g. experiment_1): ')
-model_name_1 = input('Name of first model (e.g. rl_model_100_steps): ')
+#experiment_dir_1 = input('Model experiment directory name (e.g. experiment_1): ')
+#model_name_1 = input('Name of first model (e.g. rl_model_100_steps): ')
 
-my_agent = get_model(experiment_dir_1, model_name_1)
+#my_agent = get_model(experiment_dir_1, model_name_1)
+my_agent = ConstantAgent()
 opponent = UserInputAgent()
 
 num_matches = int(input('Number of matches: '))

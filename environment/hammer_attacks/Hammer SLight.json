@@ -13,7 +13,17 @@
       "casts": [
         {
           "startupFrames": 9,
-          "attackFrames": 3
+          "attackFrames": 3,
+          "frameChanges": [
+            {
+              "frame": 9,
+              "casterVelocitySet": {
+                "active": true,
+                "magnitude": 10.0,
+                "directionDeg": 0.0
+              }
+            }
+          ]
         },
         {
           "attackFrames": 4,
@@ -32,6 +42,16 @@
               "yOffset": -39,
               "width": 78,
               "height": 120
+            }
+          ],
+          "frameChanges": [
+            {
+              "frame": 0,
+              "casterVelocitySet": {
+                "active": true,
+                "magnitude": 8.0,
+                "directionDeg": 0.0
+              }
             }
           ]
         },
@@ -52,6 +72,16 @@
               "yOffset": -39,
               "width": 78,
               "height": 120
+            }
+          ],
+          "frameChanges": [
+            {
+              "frame": 0,
+              "casterVelocitySet": {
+                "active": true,
+                "magnitude": 3.0,
+                "directionDeg": 0.0
+              }
             }
           ]
         }

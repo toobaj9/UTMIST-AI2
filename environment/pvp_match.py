@@ -20,5 +20,5 @@ run_real_time_match(
     agent_1=my_agent,
     agent_2=opponent,
     max_timesteps=30 * 270,  # Match time in frames (adjust as needed)
-    resolution=CameraResolution.MEDIUM,
+    resolution=CameraResolution.LOW,
 )

@@ -10,6 +10,7 @@ __pycache__/
 /attacks/*
 attacks.zip
 assets.zip
+.venv
 
 /checkpoints/*
 
