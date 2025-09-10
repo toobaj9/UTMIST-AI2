@@ -893,7 +893,19 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         obs_helper.add_section([0], [1], f"{name}_damage")
         obs_helper.add_section([0], [3], f"{name}_stocks")
         obs_helper.add_section([0], [11], f"{name}_move_type")
-
+        
+        # Weapons: Unnormalized, goes from [0], [2] to represent weapon type
+        obs_helper.add_section([0], [2], f"{name}_weapon_type")
+        # Pickups: Unnormalized, denote sections for [x, y, weapon_type].
+        # [x, y] represent position, used in the same way as the position observation given above.
+        # weapon_type represents the type of weapon that is being observed -- type_number is 0 if spawner currently DNE, 1 if random, 2 if spear, 3 if hammer
+        for i in range(4):
+            obs_helper.add_section([-1, -1, 0], [1, 1, 3], f"{name}_spawner_{i+1}")
+        
+        # Moving Platforms: Unnormalized, two observations to denote platform position and moving direction 
+        obs_helper.add_section([-1, -1], [1, 1], f"{name}_moving_platform_pos")
+        obs_helper.add_section([0], [1], f"{name}_moving_platform_dir")
+        
     def get_action_space(self):
         act_helper = ActHelper()
         act_helper.add_key("w") # W (Aim up)
@@ -907,8 +919,8 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         act_helper.add_key("k") # K (Heavy Attack)
         act_helper.add_key("g") # G (Taunt)
 
-        act_helper.add_key("q") #equip weapon
-        act_helper.add_key("v") #drop weapon
+        act_helper.add_key("q") # Q (Equip Weapon)
+        act_helper.add_key("v") # V (Drop Weapon)
 
         print('Action space', act_helper.low, act_helper.high)
 
@@ -2891,11 +2903,19 @@ class Player(GameObject):
         self.animation_sprite_2d = AnimationSprite2D(self.env.camera, 1.0, 'assets/player', agent_id)
         self.attack_sprite = AnimationSprite2D(self.env.camera, 2.0, 'assets/attacks', agent_id)
 
+ 
         #colin
         self.shape.filter = pymunk.ShapeFilter(
     categories=PLAYER_CAT,
     mask=ALL_CATS & ~WEAPON_CAT
 )
+
+        # Weapon mapping
+        self.weapon_mapping = {
+            "Punch": 0,
+            "Spear": 1,
+            "Hammer": 2
+        }
 
     def get_obs(self) -> list[float]:
 
@@ -2937,6 +2957,39 @@ class Player(GameObject):
 
         # 13. Move type – if the state has a move_type attribute, otherwise 0.
         obs.append(float(self.state.move_type) if hasattr(self.state, 'move_type') else 0.0)
+
+        # Current held weapon type
+        obs.append(self.weapon_mapping[self.weapon])
+        print(self.weapon_mapping[self.weapon])
+
+        # Spawner positions
+        for i in range(4):
+            try:
+                spawner = self.env.weapon_controller.spawners[i]
+                if spawner.active_weapon is not None:
+                    # Get the position of the spawner
+                    x_norm = max(-18, min(18, spawner.world_pos[0]))
+                    y_norm = max(-7, min(7, spawner.world_pos[1]))
+
+                    # Default: weapon_type = 1 for a normal/randomized spawner.
+                    weapon_type: int = 1
+                    if isinstance(spawner, DroppedWeaponSpawner):
+                        # If spear set weapon_type = 2, if hammer set weapon_type = 3
+                        if spawner.weapon_name == "Spear":
+                            weapon_type = 2
+                        elif spawner.weapon_name == "Hammer":
+                            weapon_type = 3
+                else:
+                    # Spawner active_weapon being None (inactive) means that we zero out all values
+                    x_norm, y_norm, weapon_type = 0, 0, 0
+
+                obs.extend([x_norm, y_norm, weapon_type])
+            
+            except IndexError:
+                # If current spawner inactive (out of index), set as zero array
+                obs.extend([0, 0, 0])
+
+        # TODO: Platform position + heading directions 
 
         return obs
 

@@ -1,7 +1,8 @@
 import skvideo
 import skvideo.io
 from IPython.display import Video
-from agent import SB3Agent, RecurrentPPOAgent, BasedAgent, UserInputAgent, ConstantAgent, run_match, run_real_time_match, CameraResolution,  gen_reward_manager
+from environment import RenderMode
+from agent import SB3Agent, CameraResolution, RecurrentPPOAgent, BasedAgent, UserInputAgent, ConstantAgent, run_match, run_real_time_match, gen_reward_manager
 
 reward_manager = gen_reward_manager()
 
