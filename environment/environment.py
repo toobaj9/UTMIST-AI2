@@ -980,7 +980,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
         for file in sorted(os.listdir('unarmed_attacks')):
             name = file.split('.')[0]
-            print(name)
+   
             name = name.split(" ")[1]
 
             if name not in self.keys.keys(): continue
@@ -3013,7 +3013,7 @@ class Player(GameObject):
 
         # Current held weapon type
         obs.append(self.weapon_mapping[self.weapon])
-        print(self.weapon_mapping[self.weapon])
+      
 
         # Spawner positions
         for i in range(4):
@@ -3293,7 +3293,7 @@ class Player(GameObject):
         # Determine move types:
         heavy_move = self.input.key_status['k'].held         # heavy move if key 'k' is held
         light_move = (not heavy_move) and self.input.key_status['j'].held  # light move if not heavy and key 'j' is held
-        throw_move = (not heavy_move) and (not light_move) and self.input.key_status['h'].held  # throw if pickup key 'h' is held
+       # throw_move = (not heavy_move) and (not light_move) and self.input.key_status['h'].held  # throw if pickup key 'h' is held
 
         # patch: throw move is handled elsewhere
         throw_move = False
@@ -3513,33 +3513,53 @@ class WeaponGO(GameObject):
          # NEW
         self.body = None
         self.shape = None
+    
+    def get_vfx(self):
+        if not hasattr(self,"vfx"):
+            if self.name == "Spear":
+                vfx_folder = "spearvfx"
+            elif self.name == "Hammer":
+                vfx_folder = "hammervfx"
+            
+            scale = 1.0
+            flipped = False
+            self.vfx = SpawnerVFX(
+                camera=self.env.camera,
+                world_pos=self.world_pos,
+                animation_folder=vfx_folder,
+                scale=scale, flipped = flipped
+            )
+        return self.vfx
+
+           
+    
     def _ensure_body(self, camera):
         """Create a Pymunk body/shape sized to the sprite (in WORLD units)."""
         if self.body or not self.physics_on:
             return
-        import pymunk
+        if self.body == None:
+            
+            # Convert sprite px → world units using your camera scale
+            px_per_world = float(getattr(camera, "scale_gtp")())
+            w_world = self.image.get_width()  / px_per_world
+            h_world = self.image.get_height() / px_per_world
 
-        # Convert sprite px → world units using your camera scale
-        px_per_world = float(getattr(camera, "scale_gtp")())
-        w_world = self.image.get_width()  / px_per_world
-        h_world = self.image.get_height() / px_per_world
+            # Box shape (no rotation): super high moment to keep it upright
+            h_padding = 0.5
+            shape = pymunk.Poly.create_box(None, (w_world, h_world+h_padding))
+            
+            body  = pymunk.Body(mass=100, moment=1e9)
+            shape.body = body
+            body.position = tuple(self.world_pos)
+            shape.friction = 0.0
+            shape.elasticity = 1
+            shape.collision_type = 5  # weapon; ground is 2 in your env
+            shape.owner = self
 
-        # Box shape (no rotation): super high moment to keep it upright
-        h_padding = 0.5
-        shape = pymunk.Poly.create_box(None, (w_world, h_world+h_padding))
-        
-        body  = pymunk.Body(mass=100, moment=1e9)
-        shape.body = body
-        body.position = tuple(self.world_pos)
-        shape.friction = 0.0
-        shape.elasticity = 1
-        shape.collision_type = 5  # weapon; ground is 2 in your env
-        shape.owner = self
+            self.env.space.add(body, shape)
+            self.body, self.shape = body, shape
 
-        self.env.space.add(body, shape)
-        self.body, self.shape = body, shape
-
-        self.shape.filter = pymunk.ShapeFilter(categories=WEAPON_CAT, mask=GROUND_CAT)
+            self.shape.filter = pymunk.ShapeFilter(categories=WEAPON_CAT, mask=GROUND_CAT)
 
     def activate(self, camera, world_pos, current_frame):
         #print('activate', str(current_frame))
@@ -3619,8 +3639,9 @@ class WeaponSpawner:
         
         self.active_weapon = None
         self.despawn_frames = despawn_frames
-
-        #VFX 
+        self.initialize_vfx()
+    def initialize_vfx(self):
+           #VFX 
         self.vfx = SpawnerVFX(camera=self.camera, world_pos=self.world_pos, animation_folder="spawnervfx", scale=1.25) # spawn.gif, idle.gif, despawn.gif, pickup.gif
         self.env.objects[f"SpawnerVFX{self.id}"] = self.vfx
         self.flag = False
@@ -3826,30 +3847,9 @@ class DroppedWeaponSpawner(WeaponSpawner):
 
         # Replace VFX with a distinct one (optional)
 
-  
-
-        try:
-            self.env.objects.pop(f"SpawnerVFX{self.id}", None)
-        except Exception:
-            pass
-    
-        if weapon_name == "Spear":
-            vfx_folder = "spearvfx"
-        elif weapon_name == "Hammer":
-            vfx_folder = "hammervfx"
+    def initialize_vfx(self):
         
-        self.vfx = SpawnerVFX(
-            camera=self.camera,
-            world_pos=self.world_pos,
-            animation_folder=vfx_folder,
-            scale=scale, flipped = flipped
-        )
-        self.env.objects[f"DroppedVFX{self.id}"] = self.vfx
-
-
-
-        # Use a unique registry key for the actual weapon object this spawner creates
-        self._weapon_obj_key = f"Dropped{self.weapon_name}{self.id}"
+        return 
 
     # --- override to spawn our fixed weapon and register under our own key ---
     def spawn_weapon(self, current_frame):
@@ -3857,6 +3857,18 @@ class DroppedWeaponSpawner(WeaponSpawner):
         weapon.activate(self.camera, self.world_pos, current_frame)
         self.active_weapon = weapon
         self.last_spawn_frame = current_frame
+    
+
+        try:
+            self.env.objects.pop(f"SpawnerVFX{self.id}", None)
+        except Exception:
+            pass
+        
+        self.vfx = self.active_weapon.get_vfx()
+
+        self.env.objects[f"DroppedVFX{self.id}"] = self.vfx
+
+        self._weapon_obj_key = f"Dropped{self.weapon_name}{self.id}"
         self.env.objects[self._weapon_obj_key] = weapon
 
         if self.vfx:
@@ -3876,7 +3888,8 @@ class DroppedWeaponSpawner(WeaponSpawner):
         if(self.active_weapon != None):
             if(self.active_weapon.active):
                 self.vfx.world_pos = self.active_weapon.world_pos #colin
-                print(self.active_weapon.world_pos)
+                self.vfx.flipped = self.flipped
+              
 
         if not self._spawned_once:
             self.spawn_weapon(current_frame)
@@ -3903,7 +3916,11 @@ class DroppedWeaponSpawner(WeaponSpawner):
     def try_pick_up(self,player, current_frame):
         PICKUP_KEY = 'h'
         PICKUP_RADIUS = 10
-        pressed = player.input.key_status[PICKUP_KEY].held or player.input.key_status[PICKUP_KEY].just_pressed
+        if current_frame < getattr(player, "pickup_lock_until", -1):
+            return False
+
+        PICKUP_KEY = 'h'
+        pressed = player.input.key_status[PICKUP_KEY].just_pressed  # <- use edge trigger only
 
         w = self.active_weapon
         if w is None:
@@ -3942,7 +3959,7 @@ class DroppedWeaponSpawner(WeaponSpawner):
 
 
         if not pressed or not collided: return False
-
+      
         print(f'pickup {w.name}, {pressed}, {collided}')
         player.weapon = w.name
             # --- NEW: VFX pickup one-shot -> hidden
@@ -4053,6 +4070,9 @@ class DroppedWeaponSpawner(WeaponSpawner):
                         scale=1.0,flipped=flipped
                     )
                     wb.weapon_controller.spawners.append(dropped)
+                    # prevent instant re-pickup from the same key press
+                    player.pickup_lock_until = wb.steps + 15  # ~0.25s at 60fps; tweak
+
 
                     print(f"[FRAME {wb.steps}] Player {idx} dropped '{current_weapon}' spawner at {pos} (id {new_id}).")
 
