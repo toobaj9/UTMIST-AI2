@@ -778,6 +778,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
         self.stage_width_tiles: float = 29.8
         self.stage_height_tiles: float = 16.8
+        self.number_of_platforms: int = 2
 
         self.mode = mode
         self.resolution = resolution
@@ -970,6 +971,12 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
             if player.stocks <= 0:
                 self.terminated = True
                 self.win_signal.emit(agent='player' if agent == 1 else 'opponent')
+            if player.on_platform is not None:
+                platform_vel = player.on_platform.velocity
+                player.body.velocity = pymunk.Vec2d(platform_vel.x, platform_vel.y)
+                print("Platform_vel: ", end = ""); print(platform_vel);
+
+            
 
 
         # Process physics info
@@ -1087,112 +1094,80 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
     def close(self) -> None:
         self.camera.close()
    
+   
     def pre_solve_oneway(self, arbiter, space, data):
+        """
+        Handle one-way platform collision logic.
+        Allow players to pass through from below, but land on top.
+        Allow drop-through when S key is pressed.
+        """
         player_shape, platform_shape = arbiter.shapes
-        player = player_shape.body
-        platform = platform_shape.body
+        player = player_shape.owner
+        
+        # Get collision normal (points from platform to player)
         normal = arbiter.contact_point_set.normal
-        if normal.y > 0:
-            # only collide if player is above
-            player.on_platform = platform
-            return True
-        return False
+        
+        # If player is coming from above (normal.y > 0), allow collision
+        # If player is coming from below/side (normal.y <= 0), ignore collision
+        if normal.y <= 0:
+            return False
+        
+        # Check if player is pressing S to drop through platform
+        if hasattr(player.input, 'key_status') and "S" in player.input.key_status:
+            if player.input.key_status["S"].held:
+                player.on_platform = None
+                return False
+        
+        # Player is landing on platform from above - enable collision
+        player.on_platform = platform_shape.body
+        return True
 
     def separate_player_platform(self, arbiter, space, data):
+        """
+        Called when player separates from platform.
+        """
         player_shape, platform_shape = arbiter.shapes
-        player = player_shape.body
-        # Clear reference when leaving platform
+        player = player_shape.owner
         player.on_platform = None
 
-   
-   
-    def pre_solve_oneway(self, arbiter, space, data):
-        player_shape, platform_shape = arbiter.shapes
-        player = player_shape.body
-        platform = platform_shape.body
-        normal = arbiter.contact_point_set.normal
-        if normal.y > 0:
-            # only collide if player is above
-            player.on_platform = platform
-            return True
-        return False
-
-    def separate_player_platform(arbiter, space, data):
-        player_shape, platform_shape = arbiter.shapes
-        player = player_shape.body
-        # Clear reference when leaving platform
-        player.on_platform = None
-
-   
     def _setup(self):
-        # Collsion fix
-        handler = self.space.add_collision_handler(PLAYER, 
-                                                   PLAYER + 1)  # (Player1 collision_type, Player2 collision_type)
+        # Collision fix - prevent players from colliding with each other
+        handler = self.space.add_collision_handler(PLAYER, PLAYER + 1)
         handler.begin = lambda *args, **kwargs: False
 
-        platform_handler = self.space.add_collision_handler(PLAYER, PLATFORM + 1)
-        platform_handler.pre_solve = self.pre_solve_oneway
-        platform_handler.separate = self.separate_player_platform
-      
+        # Set up one-way platform collision for each player and platform combination
+        for player_num in range(2):
+            for platform_num in range(1, self.number_of_platforms + 1):
+                handler = self.space.add_collision_handler(PLAYER + player_num, PLATFORM + platform_num)
+                handler.pre_solve = self.pre_solve_oneway
+                handler.separate = self.separate_player_platform
+
         # Environment
         ground = Ground(self.space, 0, 2.03, 10.67)
         self.objects['ground'] = ground
-        
-        
-        stage1 = Stage(self.space, 1, 4, 2, 2, 2)
+
+        # Create platforms with proper positioning
+        stage1 = Stage(self.space, 1, 0, 1, 2, 1, (100, 100, 200, 255))
         self.objects['stage1'] = stage1
-        # State the waypoint positions for this platform.
-        # Note that in our case the y axis increases DOWNWARDS, NOT UPWARD
-        stage1.waypoint1 = (0,1)
-        stage1.waypoint2 = (0,1)
+        stage1.waypoint1 = (0, 1)
+        stage1.waypoint2 = (0, 1)
 
-        stage2 = Stage(self.space, 2, 4, 2, 2, 2)
+        stage2 = Stage(self.space, 2, 0, -1, 2, 1, (200, 100, 100, 255))
         self.objects['stage2'] = stage2
-        # State the waypoint positions for this platform.
-        # Note that in our case the y axis increases DOWNWARDS, NOT UPWARD
-        stage2.waypoint1 = (-4,-1)
-        stage2.waypoint2 = (4,-1)
-        
-        
-        stage1 = Stage(self.space, 1, 4, 2, 2, 2)
-        self.objects['stage1'] = stage1
-        # State the waypoint positions for this platform.
-        # Note that in our case the y axis increases DOWNWARDS, NOT UPWARD
-        stage1.waypoint1 = (-4,1)
-        stage1.waypoint2 = (4,1)
+        stage2.waypoint1 = (-4, -1)
+        stage2.waypoint2 = (4, -1)
 
-        stage2 = Stage(self.space, 2, 4, 2, 2, 2)
-        self.objects['stage2'] = stage2
-        # State the waypoint positions for this platform.
-        # Note that in our case the y axis increases DOWNWARDS, NOT UPWARD
-        stage2.waypoint1 = (-4,-1)
-        stage2.waypoint2 = (4,-1)
-
-        # Players
-        # randomize start pos, binary
+        # Players setup (rest of your existing code)
         p1_right = bool(random.getrandbits(1))
         p1_start_pos = [5, 0] if p1_right else [-5, 0]
         p2_start_pos = [-5, 0] if p1_right else [5, 0]
-
-        # Uncomment this if you'd like. It makes train_mode RANDOMIZE the
-        # position of both players, so that they get used to many
-        # different positions in the map!
-
-        # if self.train_mode:
-        #     p1_start_pos = [random.uniform(-5, 5), 0]
-        #     p2_start_pos = [random.uniform(-5, 5), 0]
-        # else:
-        #     p1_start_pos = [5, 0] if p1_right else [-5, 0]
-        #     p2_start_pos = [-5, 0] if p1_right else [5, 0]
 
         p1 = Player(self, 0, start_position=p1_start_pos, color=[0, 0, 255, 255])
         p2 = Player(self, 1, start_position=p2_start_pos, color=[0, 255, 0, 255])
 
         self.objects['player'] = p1
         self.objects['opponent'] = p2
-
         self.players += [p1, p2]
-
 
 # ### GameObject
 
@@ -1298,22 +1273,22 @@ class Ground(GameObject):
 
 class Stage(GameObject):
     def __init__(self, space, platform_id: int, x, y, width, height, color=(150, 150, 150, 255)):
-      self.body = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
-      self.body.position = (0, 0)
-      self.shape = pymunk.Poly.create_box(self.body, (width, height * 0.1))
-      self.shape.friction = 0.7
-      self.shape.color = color
-      self.shape.collision_type = PLATFORM + platform_id  # Platform
-      space.add(self.shape, self.body)
-      self.loaded = False
-      self.width = width
-      self.height = height
+        self.body = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
+        self.body.position = (x, y)  # Set initial position
+        self.shape = pymunk.Poly.create_box(self.body, (width, height * 0.1))
+        self.shape.friction = 0.9  # Add some friction so players can walk normally
+        self.shape.color = color
+        self.shape.collision_type = PLATFORM + platform_id
+        self.shape.platform_id = platform_id  # Store platform ID for reference
+        space.add(self.shape, self.body)
+        self.width = width
+        self.height = height
+        self.loaded = False
 
-      # Movement config
-      self.waypoint1 = (0, 0)
-      self.waypoint2 = (0 , 0)
-      self.moving_to_w2 = True
-
+        # Movement config
+        self.waypoint1 = (0, 0)
+        self.waypoint2 = (0, 0)
+        self.moving_to_w2 = True
 
     def load_assets(self):
         if self.loaded: return
@@ -1323,140 +1298,67 @@ class Stage(GameObject):
         print("Stage is rendered")
 
     def render(self, canvas, camera) -> None:
-         self.load_assets()
-         self.draw_image(canvas, self.stage_img, (self.body.position.x, self.body.position.y), self.width, camera)
-         self.draw_outline(canvas,camera)
-
-
-    def draw_outline(self, canvas, camera):
-      # 1. Get the vertices of the shape (in local body space)
-      local_vertices = self.shape.get_vertices()
-
-      # 2. Convert to world space (apply rotation and position)
-      world_vertices = [v.rotated(self.body.angle) + self.body.position for v in local_vertices]
-
-      # 3. Convert to screen space using camera.gtp()
-      screen_points = [camera.gtp(v) for v in world_vertices]
-
-      # 4. Draw red outline
-      pygame.draw.polygon(canvas, (255, 0, 0), screen_points, width=2)#martin
-
-
-    def physics_process(self, deltaTime: float) -> None:
-      """Move between waypoints with variable speed, along any line (horizontal, vertical, diagonal)."""
-      import math
-
-      currentPos = self.body.position
-      target = self.waypoint2 if self.moving_to_w2 else self.waypoint1
-
-      dx = target[0] - currentPos[0]
-      dy = target[1] - currentPos[1]
-      dist = math.sqrt(dx*dx + dy*dy)
-
-      # If we're basically at the target, snap and swap direction
-      if dist < 1e-5:
-          self.body.position = target
-          self.moving_to_w2 = not self.moving_to_w2
-          return
-
-      # Direction vector
-      dir_x = dx / dist
-      dir_y = dy / dist
-
-      # Vector from waypoint1 to waypoint2
-      seg_x = self.waypoint2[0] - self.waypoint1[0]
-      seg_y = self.waypoint2[1] - self.waypoint1[1]
-      seg_len = max(math.sqrt(seg_x*seg_x + seg_y*seg_y),0.05)
-
-      # Midpoint of the segment
-      mid_x = (self.waypoint1[0] + self.waypoint2[0]) * 0.5
-      mid_y = (self.waypoint1[1] + self.waypoint2[1]) * 0.5
-
-      # Projection of current position onto the segment direction
-      # This gives us "how far along the line" we are
-      rel_x = max(currentPos[0] - mid_x, 0.05)
-      rel_y = max(currentPos[1] - mid_y,0.05)
-      proj = (rel_x * seg_x + rel_y * seg_y) / seg_len  # signed distance from midpoint along segment
-
-      # Speed scales with distance from midpoint (max at ends, min at center)
-      base_speed = 2.0
-      speed = base_speed * (1.0 + 0.5 * abs(proj) / (seg_len * 0.5))
-
-      step = speed * deltaTime
-      if step >= dist:
-          self.body.position = target
-          self.moving_to_w2 = not self.moving_to_w2
-      else:
-          new_x = currentPos[0] + dir_x * step
-          new_y = currentPos[1] + dir_y * step
-          self.body.position = (new_x, new_y)
-         self.load_assets()
-         self.draw_image(canvas, self.stage_img, (self.body.position.x, self.body.position.y), self.width, camera)
-         self.draw_outline(canvas,camera)
-
+        self.load_assets()
+        self.draw_image(canvas, self.stage_img, (self.body.position.x, self.body.position.y), self.width, camera)
+        self.draw_outline(canvas, camera)
 
     def draw_outline(self, canvas, camera):
-      # 1. Get the vertices of the shape (in local body space)
-      local_vertices = self.shape.get_vertices()
+        # 1. Get the vertices of the shape (in local body space)
+        local_vertices = self.shape.get_vertices()
 
-      # 2. Convert to world space (apply rotation and position)
-      world_vertices = [v.rotated(self.body.angle) + self.body.position for v in local_vertices]
+        # 2. Convert to world space (apply rotation and position)
+        world_vertices = [v.rotated(self.body.angle) + self.body.position for v in local_vertices]
 
-      # 3. Convert to screen space using camera.gtp()
-      screen_points = [camera.gtp(v) for v in world_vertices]
+        # 3. Convert to screen space using camera.gtp()
+        screen_points = [camera.gtp(v) for v in world_vertices]
 
-      # 4. Draw red outline
-      pygame.draw.polygon(canvas, (255, 0, 0), screen_points, width=2)#martin
-
+        # 4. Draw red outline
+        pygame.draw.polygon(canvas, (255, 0, 0), screen_points, width=2)
 
     def physics_process(self, deltaTime: float) -> None:
-      """Move between waypoints with variable speed, along any line (horizontal, vertical, diagonal)."""
-      import math
+        """Move between waypoints with smooth acceleration/deceleration."""
+        import math
 
-      currentPos = self.body.position
-      target = self.waypoint2 if self.moving_to_w2 else self.waypoint1
+        currentPos = self.body.position
+        target = self.waypoint2 if self.moving_to_w2 else self.waypoint1
 
-      dx = target[0] - currentPos[0]
-      dy = target[1] - currentPos[1]
-      dist = math.sqrt(dx*dx + dy*dy)
+        dx = target[0] - currentPos[0]
+        dy = target[1] - currentPos[1]
+        dist = math.sqrt(dx*dx + dy*dy)
 
-      # If we're basically at the target, snap and swap direction
-      if dist < 1e-5:
-          self.body.position = target
-          self.moving_to_w2 = not self.moving_to_w2
-          return
+        # If we're very close to the target, stop and swap direction
+        if dist < 0.1:
+            self.body.velocity = (0, 0)
+            self.moving_to_w2 = not self.moving_to_w2
+            return
 
-      # Direction vector
-      dir_x = dx / dist
-      dir_y = dy / dist
+        # Direction vector (normalized)
+        dir_x = dx / dist
+        dir_y = dy / dist
 
-      # Vector from waypoint1 to waypoint2
-      seg_x = self.waypoint2[0] - self.waypoint1[0]
-      seg_y = self.waypoint2[1] - self.waypoint1[1]
-      seg_len = math.sqrt(seg_x*seg_x + seg_y*seg_y)
+        # Segment vector and length
+        seg_x = self.waypoint2[0] - self.waypoint1[0]
+        seg_y = self.waypoint2[1] - self.waypoint1[1]
+        seg_len = max(math.sqrt(seg_x*seg_x + seg_y*seg_y), 0.05)
 
-      # Midpoint of the segment
-      mid_x = (self.waypoint1[0] + self.waypoint2[0]) * 0.5
-      mid_y = (self.waypoint1[1] + self.waypoint2[1]) * 0.5
+        # Projection of current position onto the segment
+        # (how far along the path we are, normalized 0→1)
+        rel_x = currentPos[0] - self.waypoint1[0]
+        rel_y = currentPos[1] - self.waypoint1[1]
+        progress = (rel_x * seg_x + rel_y * seg_y) / (seg_len * seg_len)
+        progress = max(0.0, min(1.0, progress))  # clamp to [0, 1]
 
-      # Projection of current position onto the segment direction
-      # This gives us "how far along the line" we are
-      rel_x = currentPos[0] - mid_x
-      rel_y = currentPos[1] - mid_y
-      proj = (rel_x * seg_x + rel_y * seg_y) / seg_len  # signed distance from midpoint along segment
+        # Smooth speed profile: cosine-shaped ease-in/out
+        # At 0 or 1 → 0 speed, at 0.5 → max speed
+        base_speed = 5.0  # maximum speed at midpoint
+        speed = base_speed * math.sin(progress * math.pi) + 0.03 ;
 
-      # Speed scales with distance from midpoint (max at ends, min at center)
-      base_speed = 2.0
-      speed = base_speed * (1.0 + 0.5 * abs(proj) / (seg_len * 0.5))
+        # Apply velocity
+        velocity_x = dir_x * speed
+        velocity_y = dir_y * speed
+        self.body.velocity = (velocity_x, velocity_y)
 
-      step = speed * deltaTime
-      if step >= dist:
-          self.body.position = target
-          self.moving_to_w2 = not self.moving_to_w2
-      else:
-          new_x = currentPos[0] + dir_x * step
-          new_y = currentPos[1] + dir_y * step
-          self.body.position = (new_x, new_y)
+
 
 class Target(GameObject):
     def __init__(self):
