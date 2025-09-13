@@ -1143,19 +1143,22 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
                 handler.separate = self.separate_player_platform
 
         # Environment
-        ground = Ground(self.space, 0, 2.03, 10.67)
-        self.objects['ground'] = ground
+        ground1 = Ground(self.space, 6, 0, 10)
+        self.objects['ground1'] = ground1
+
+        ground2 = Ground(self.space, -6, 2.03, 10)
+        self.objects['ground2'] = ground2
 
         # Create platforms with proper positioning
         stage1 = Stage(self.space, 1, 0, 1, 2, 1, (100, 100, 200, 255))
         self.objects['stage1'] = stage1
-        stage1.waypoint1 = (0, 1)
-        stage1.waypoint2 = (0, 1)
+        stage1.waypoint1 = (-1, 3)
+        stage1.waypoint2 = (1, 0)
 
-        stage2 = Stage(self.space, 2, 0, -1, 2, 1, (200, 100, 100, 255))
-        self.objects['stage2'] = stage2
-        stage2.waypoint1 = (-4, -1)
-        stage2.waypoint2 = (4, -1)
+        # stage2 = Stage(self.space, 2, 0, -1, 2, 1, (200, 100, 100, 255))
+        # self.objects['stage2'] = stage2
+        # stage2.waypoint1 = (-4, -1)
+        # stage2.waypoint2 = (4, -1)
 
         # Players setup (rest of your existing code)
         p1_right = bool(random.getrandbits(1))
@@ -3012,7 +3015,7 @@ class Player(GameObject):
 
     def is_on_floor(self) -> bool:
         old_cond = (abs(self.body.position.y - 1.540) < 0.03 and abs(self.body.position.x) < 5.77)
-        return self.shape.cache_bb().intersects(self.env.objects['ground'].shape.cache_bb()) or old_cond
+        return self.shape.cache_bb().intersects(self.env.objects['ground1'].shape.cache_bb()) or old_cond
         #return abs(self.body.position.y - 1.540) < 0.03 and abs(self.body.position.x) < 5.77
 
     def set_gravity_disabled(self, disabled:bool) -> None:
