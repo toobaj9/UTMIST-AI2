@@ -764,8 +764,16 @@ class Facing(Enum):
         return "D" if facing == Facing.RIGHT else "A"
     
     @staticmethod
+    def get_int(facing):
+        return 1 if facing == Facing.RIGHT else -1
+    
+    @staticmethod
     def get_opposite_key(facing):
         return "A" if facing == Facing.RIGHT else "D"
+
+    @staticmethod
+    def get_opposite_int(facing):
+        return -1 if facing == Facing.RIGHT else 1
 
     @staticmethod
     def from_direction(direction: float) -> "Facing":
@@ -1332,6 +1340,65 @@ class KeyStatus():
     held: bool = False
     just_released: bool = False
 
+class HorizontalState(Enum):
+    NONE = 0
+    LEFT = 1
+    RIGHT = 2
+    LEFT_RIGHT = 3
+    RIGHT_LEFT = 4
+
+    def remove(self, facing: "Facing") -> "HorizontalState":
+        if self == HorizontalState.NONE: return self
+
+        if facing == Facing.LEFT:
+            if self == HorizontalState.LEFT:
+                return HorizontalState.NONE
+            elif self == HorizontalState.LEFT_RIGHT:
+                return HorizontalState.RIGHT
+            elif self == HorizontalState.RIGHT_LEFT:
+                return HorizontalState.RIGHT
+        elif facing == Facing.RIGHT:
+            if self == HorizontalState.RIGHT:
+                return HorizontalState.NONE
+            elif self == HorizontalState.LEFT_RIGHT:
+                return HorizontalState.LEFT
+            elif self == HorizontalState.RIGHT_LEFT:
+                return HorizontalState.LEFT
+        return self
+
+    def stack(self, facing: "Facing") -> "HorizontalState":
+        if self == HorizontalState.NONE:
+            return HorizontalState.LEFT if facing == Facing.LEFT else HorizontalState.RIGHT
+        elif self == HorizontalState.LEFT:
+            if facing == Facing.RIGHT: return HorizontalState.LEFT_RIGHT
+        elif self == HorizontalState.RIGHT:
+            if facing == Facing.LEFT: return HorizontalState.RIGHT_LEFT
+        return self
+    
+    def register_keys(self, left_status: KeyStatus, right_status: KeyStatus) -> "HorizontalState":
+        # Register releases
+        output = self
+        if left_status.just_released:
+            output = output.remove(Facing.LEFT)
+        if right_status.just_released:
+            output = output.remove(Facing.RIGHT)
+        
+        # Register presses
+        if right_status.just_pressed:
+            output = output.stack(Facing.RIGHT)
+        if left_status.just_pressed:
+            output = output.stack(Facing.LEFT)
+
+        return output
+    
+    def get_last_int(self) -> int:
+        if self == HorizontalState.LEFT: return -1
+        if self == HorizontalState.NONE: return 0
+        if self == HorizontalState.RIGHT: return 1
+        if self == HorizontalState.LEFT_RIGHT: return 1
+        if self == HorizontalState.RIGHT_LEFT: return -1
+        return 0
+
 class PlayerInputHandler():
     def __init__(self):
         # Define the key order corresponding to the action vector:
@@ -1345,6 +1412,8 @@ class PlayerInputHandler():
         self.raw_vertical = 0.0   # +1 if W is held, -1 if S is held.
         self.raw_horizontal = 0.0 # +1 if D is held, -1 if A is held.
         self.no_horizontal = True # True if neither A nor D is held.
+        self.horizontal_state = HorizontalState.NONE
+        self.last_direction = 0 # Last direction pressed: -1 for left, +1 for right, 0 for none.
 
     def update(self, action: np.ndarray):
         """
@@ -1376,6 +1445,12 @@ class PlayerInputHandler():
         # Horizontal axis: D (+1) and A (-1)
         self.raw_horizontal = (1.0 if self.key_status["D"].held else 0.0) + (-1.0 if self.key_status["A"].held else 0.0)
         self.no_horizontal = not self.key_status['D'].held and not self.key_status['A'].held
+
+        # Update horizontal_state
+        self.horizontal_state = self.horizontal_state.register_keys(
+            self.key_status['A'], self.key_status['D']
+        )   
+
 
     def __repr__(self):
         # For debugging: provide a summary of the key statuses and axes.
@@ -1759,14 +1834,18 @@ class TurnaroundState(GroundState):
 
         if self.turnaround_timer <= 0:
             # If still pressing opposite, that takes priority over held original
-            if self.p.input.key_status[Facing.get_opposite_key(self.p.facing)].held:
+            last_dir = self.p.input.horizontal_state.get_last_int()
+            if Facing.get_opposite_int(self.p.facing) == last_dir:
                 self.p.facing = Facing.flip(self.p.facing)
                 return self.p.states['walking']
 
             # If not pressing opposite, but still pressing original, go to new turnaround
-            if self.p.input.key_status[Facing.get_key(self.p.facing)].held:
+            if Facing.get_int(self.p.facing) == last_dir:
                 self.p.facing = Facing.flip(self.p.facing)
                 return self.p.states['turnaround']
+        
+            # If not pressing either, go to standing and turned around
+            self.p.facing = Facing.flip(self.p.facing)
             return self.p.states['standing']
 
 
