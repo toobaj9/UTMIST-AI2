@@ -648,12 +648,12 @@ def run_match(agent_1: Agent | partial,
     if not agent_1.initialized: agent_1.get_env_info(env)
     if not agent_2.initialized: agent_2.get_env_info(env)
     # 596, 336
-    stage1 = env.objects["stage1"]
-    stage2 = env.objects["stage2"]
+    platform1 = env.objects["platform1"]
+    platform2 = env.objects["platform2"]
 
     for time in tqdm(range(max_timesteps), total=max_timesteps):
-      stage1.physics_process(0.05)
-      stage2.physics_process(0.5)
+      platform1.physics_process(0.05)
+      platform2.physics_process(0.5)
 
       full_action = {
           0: agent_1.predict(obs_1),
@@ -1421,7 +1421,7 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
     # Run the match loop
     running = True
     timestep = 0
-    stage1 = env.objects["stage1"]
+    platform1 = env.objects["platform1"]
     #stage2 = env.objects["stage2"]
     while running and timestep < max_timesteps:
         # Pygame event to handle real-time user input 
@@ -1432,7 +1432,7 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
                  screen = pygame.display.set_mode(event.size, pygame.RESIZABLE)
         scaled = pygame.transform.smoothscale(screen_surface, screen.get_size())
         screen.blit(scaled, (0, 0))
-        stage1.physics_process(0.05)
+        platform1.physics_process(0.05)
        # stage2.physics_process(0.05)
         # User input
         action_1 = agent_1.predict(obs_1)

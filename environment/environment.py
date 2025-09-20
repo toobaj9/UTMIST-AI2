@@ -974,7 +974,6 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
             if player.on_platform is not None:
                 platform_vel = player.on_platform.velocity
                 player.body.velocity = pymunk.Vec2d(platform_vel.x, platform_vel.y)
-                print("Platform_vel: ", end = ""); print(platform_vel);
 
             
 
@@ -1115,7 +1114,9 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         # Check if player is pressing S to drop through platform
         if hasattr(player.input, 'key_status') and "S" in player.input.key_status:
             if player.input.key_status["S"].held:
+                print("S was pressed")
                 player.on_platform = None
+                print(player.on_platform);
                 return False
         
         # Player is landing on platform from above - enable collision
@@ -1150,15 +1151,15 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         self.objects['ground2'] = ground2
 
         # Create platforms with proper positioning
-        stage1 = Stage(self.space, 1, 0, 1, 2, 1, (100, 100, 200, 255))
-        self.objects['stage1'] = stage1
-        stage1.waypoint1 = (-1, 3)
-        stage1.waypoint2 = (1, 0)
+        platform1 = Stage(self.space, 1, 0, 1, 2, 1, (100, 100, 200, 255))
+        self.objects['platform1'] = platform1
+        platform1.waypoint1 = (-1, 3)
+        platform1.waypoint2 = (1, 0)
 
         # stage2 = Stage(self.space, 2, 0, -1, 2, 1, (200, 100, 100, 255))
         # self.objects['stage2'] = stage2
         # stage2.waypoint1 = (-4, -1)
-        # stage2.waypoint2 = (4, -1)
+        # platform2.waypoint2 = (4, -1)
 
         # Players setup (rest of your existing code)
         p1_right = bool(random.getrandbits(1))
@@ -1287,6 +1288,8 @@ class Stage(GameObject):
         self.width = width
         self.height = height
         self.loaded = False
+        self.velocity_x = 0;
+        self.velocity_y = 0;
 
         # Movement config
         self.waypoint1 = (0, 0)
@@ -1297,12 +1300,12 @@ class Stage(GameObject):
         if self.loaded: return
         self.loaded = True
         self.bg_img = pygame.image.load('assets/map/bg.jpg')
-        self.stage_img = pygame.image.load('assets/map/platform.png')
+        self.platform_img = pygame.image.load('assets/map/platform.png')
         print("Stage is rendered")
 
     def render(self, canvas, camera) -> None:
         self.load_assets()
-        self.draw_image(canvas, self.stage_img, (self.body.position.x, self.body.position.y), self.width, camera)
+        self.draw_image(canvas, self.platform_img, (self.body.position.x, self.body.position.y), self.width, camera)
         self.draw_outline(canvas, camera)
 
     def draw_outline(self, canvas, camera):
@@ -1712,6 +1715,11 @@ class WalkingState(GroundState):
         # Check for dash
         if self.p.input.key_status["l"].just_pressed:
             return self.p.states['dash']
+        
+        if self.p.shape.cache_bb().intersects(self.p.env.objects['platform1'].shape.cache_bb()):
+            self.p.body.velocity = pymunk.Vec2d(int(self.p.facing) * self.p.move_speed + self.p.env.objects['platform1'].velocity_x, self.p.body.velocity.y + self.p.env.objects['platform1'].velocity_y)
+            return None;
+                
 
         # Handle movement
         self.p.body.velocity = pymunk.Vec2d(direction * self.p.move_speed, self.p.body.velocity.y)
@@ -1765,6 +1773,9 @@ class StandingState(GroundState):
         if abs(direction) > 1e-2:
             self.p.facing = Facing.from_direction(direction)
             return self.p.states['walking']
+        if self.p.shape.cache_bb().intersects(self.p.env.objects['platform1'].shape.cache_bb()):
+            self.p.body.velocity = pymunk.Vec2d(self.p.env.objects['platform1'].velocity_x,self.p.env.objects['platform1'].velocity_y)
+            return None
 
 
         # gradual ease
@@ -3013,10 +3024,6 @@ class Player(GameObject):
 
         self.assets_loaded = True
 
-    def is_on_floor(self) -> bool:
-        old_cond = (abs(self.body.position.y - 1.540) < 0.03 and abs(self.body.position.x) < 5.77)
-        return self.shape.cache_bb().intersects(self.env.objects['ground1'].shape.cache_bb()) or old_cond
-        #return abs(self.body.position.y - 1.540) < 0.03 and abs(self.body.position.x) < 5.77
 
     def set_gravity_disabled(self, disabled:bool) -> None:
         self.body.gravity_scale = 0 if disabled else 1
@@ -3060,6 +3067,14 @@ class Player(GameObject):
         cc = (227, 138, 14) if self.agent_id == 0 else (18, 131, 201)
         screen_pos = camera.gtp((int(position[0]), int(position[1])-1))
         pygame.draw.circle(camera.canvas, cc, screen_pos, camera.scale_gtp() * 0.25)
+
+    def is_on_floor(self) -> bool:
+        if(self.shape.cache_bb().intersects(self.env.objects['ground1'].shape.cache_bb()) or
+           self.shape.cache_bb().intersects(self.env.objects['ground2'].shape.cache_bb())):
+            return True 
+        if(self.shape.cache_bb().intersects(self.env.objects['platform1'].shape.cache_bb()) and self.body.position[1] <= self.env.objects['platform1'].body.position[1]):#mohamed
+            return True
+        return False
 
 
     def set_hitboxes_to_draw(self, hitboxes: Optional[List[Any]]=None,
