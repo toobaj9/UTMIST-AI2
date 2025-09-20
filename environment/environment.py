@@ -1144,17 +1144,17 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
                 handler.separate = self.separate_player_platform
 
         # Environment
-        ground1 = Ground(self.space, 6, 0, 10)
+        ground1 = Ground(self.space, 6, 3, 10)
         self.objects['ground1'] = ground1
 
-        ground2 = Ground(self.space, -6, 2.03, 10)
+        ground2 = Ground(self.space, -6, 3, 10)
         self.objects['ground2'] = ground2
 
         # Create platforms with proper positioning
         platform1 = Stage(self.space, 1, 0, 1, 2, 1, (100, 100, 200, 255))
         self.objects['platform1'] = platform1
-        platform1.waypoint1 = (-1, 3)
-        platform1.waypoint2 = (1, 0)
+        platform1.waypoint1 = (-2, 0)
+        platform1.waypoint2 = (2, 0)
 
         # stage2 = Stage(self.space, 2, 0, -1, 2, 1, (200, 100, 100, 255))
         # self.objects['stage2'] = stage2
@@ -1356,12 +1356,12 @@ class Stage(GameObject):
 
         # Smooth speed profile: cosine-shaped ease-in/out
         # At 0 or 1 → 0 speed, at 0.5 → max speed
-        base_speed = 5.0  # maximum speed at midpoint
+        base_speed = 5.0   # maximum speed at midpoint
         speed = base_speed * math.sin(progress * math.pi) + 0.03 ;
 
         # Apply velocity
-        velocity_x = dir_x * speed
-        velocity_y = dir_y * speed
+        velocity_x = dir_x * speed 
+        velocity_y = dir_y * speed ;
         self.body.velocity = (velocity_x, velocity_y)
 
 
@@ -1716,8 +1716,8 @@ class WalkingState(GroundState):
         if self.p.input.key_status["l"].just_pressed:
             return self.p.states['dash']
         
-        if self.p.shape.cache_bb().intersects(self.p.env.objects['platform1'].shape.cache_bb()):
-            self.p.body.velocity = pymunk.Vec2d(int(self.p.facing) * self.p.move_speed + self.p.env.objects['platform1'].velocity_x, self.p.body.velocity.y + self.p.env.objects['platform1'].velocity_y)
+        if self.p.shape.cache_bb().intersects(self.p.env.objects['platform1'].shape.cache_bb()) and not self.p.input.key_status["S"].held:
+            self.p.body.velocity = pymunk.Vec2d(int(self.p.facing) * self.p.move_speed + self.p.env.objects['platform1'].body.velocity[0], self.p.body.velocity.y + self.p.env.objects['platform1'].body.velocity[1])
             return None;
                 
 
@@ -1773,8 +1773,8 @@ class StandingState(GroundState):
         if abs(direction) > 1e-2:
             self.p.facing = Facing.from_direction(direction)
             return self.p.states['walking']
-        if self.p.shape.cache_bb().intersects(self.p.env.objects['platform1'].shape.cache_bb()):
-            self.p.body.velocity = pymunk.Vec2d(self.p.env.objects['platform1'].velocity_x,self.p.env.objects['platform1'].velocity_y)
+        if self.p.shape.cache_bb().intersects(self.p.env.objects['platform1'].shape.cache_bb()) and not self.p.input.key_status["S"].held:
+            self.p.body.velocity = pymunk.Vec2d(self.p.env.objects['platform1'].body.velocity[0],self.p.env.objects['platform1'].body.velocity[1])
             return None
 
 

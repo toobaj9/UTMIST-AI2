@@ -1432,7 +1432,7 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
                  screen = pygame.display.set_mode(event.size, pygame.RESIZABLE)
         scaled = pygame.transform.smoothscale(screen_surface, screen.get_size())
         screen.blit(scaled, (0, 0))
-        platform1.physics_process(0.05)
+        platform1.physics_process(2)
        # stage2.physics_process(0.05)
         # User input
         action_1 = agent_1.predict(obs_1)
