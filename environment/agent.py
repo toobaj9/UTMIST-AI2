@@ -601,7 +601,6 @@ def run_match(agent_1: Agent | partial,
               video_path: Optional[str]=None,
               agent_1_name: Optional[str]=None,
               agent_2_name: Optional[str]=None,
-              mode=RenderMode.RGB_ARRAY,
               resolution = CameraResolution.LOW,
               reward_manager: Optional[RewardManager]=None,
               train_mode=False
@@ -611,7 +610,7 @@ def run_match(agent_1: Agent | partial,
     observations, infos = env.reset()
     obs_1 = observations[0]
     obs_2 = observations[1]
-
+    print("RUN MATCH IS RUNNING")
     if reward_manager is not None:
         reward_manager.reset()
         reward_manager.subscribe_signals(env)
@@ -649,32 +648,33 @@ def run_match(agent_1: Agent | partial,
     if not agent_1.initialized: agent_1.get_env_info(env)
     if not agent_2.initialized: agent_2.get_env_info(env)
     # 596, 336
+    platform1 = env.objects["platform1"]
+    platform2 = env.objects["platform2"]
 
-    for _ in tqdm(range(max_timesteps), total=max_timesteps):
-        # actions = {agent: agents[agent].predict(None) for agent in range(2)}
+    for time in tqdm(range(max_timesteps), total=max_timesteps):
+      platform1.physics_process(0.05)
+      platform2.physics_process(0.5)
 
-        # observations, rewards, terminations, truncations, infos
+      full_action = {
+          0: agent_1.predict(obs_1),
+          1: agent_2.predict(obs_2)
+      }
 
-        full_action = {
-            0: agent_1.predict(obs_1),
-            1: agent_2.predict(obs_2)
-        }
+      observations, rewards, terminated, truncated, info = env.step(full_action)
+      obs_1 = observations[0]
+      obs_2 = observations[1]
 
-        observations, rewards, terminated, truncated, info = env.step(full_action)
-        obs_1 = observations[0]
-        obs_2 = observations[1]
+      if reward_manager is not None:
+          reward_manager.process(env, 1 / env.fps)
 
-        if reward_manager is not None:
-            reward_manager.process(env, 1 / env.fps)
+      if video_path is not None:
+          img = env.render()
+          writer.writeFrame(img)
+          del img
 
-        if video_path is not None:
-            img = env.render()
-            writer.writeFrame(img)
-            del img
+      if terminated or truncated:
+          break
 
-        if terminated or truncated:
-            break
-        #env.show_image(img)
 
     if video_path is not None:
         writer.close()
@@ -1427,6 +1427,10 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
     #screen = pygame.display.set_mode((1920, 1080))  # Set screen dimensions
     screen = pygame.display.set_mode(resolutions[resolution][::-1])  # Set screen dimensions
     pygame.display.set_caption("AI Squared - Player vs AI Demo")
+    screen.fill((0, 0, 0))  # Fill screen with black
+    rect = screen_surface.get_rect(center=screen.get_rect().center)
+    #screen.blit(screen_surface, rect)
+  #  pygame.display.flip()
     clock = pygame.time.Clock()
 
     # Initialize environment
@@ -1441,12 +1445,19 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
     # Run the match loop
     running = True
     timestep = 0
+    platform1 = env.objects["platform1"]
+    #stage2 = env.objects["stage2"]
     while running and timestep < max_timesteps:
         # Pygame event to handle real-time user input 
         for event in pygame.event.get():
             if event.type == QUIT:
                 running = False
-
+            if event.type == pygame.VIDEORESIZE:
+                 screen = pygame.display.set_mode(event.size, pygame.RESIZABLE)
+        scaled = pygame.transform.smoothscale(screen_surface, screen.get_size())
+        screen.blit(scaled, (0, 0))
+        platform1.physics_process(2)
+       # stage2.physics_process(0.05)
         # User input
         action_1 = agent_1.predict(obs_1)
 
@@ -1470,6 +1481,8 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
         # If the match is over (either terminated or truncated), stop the loop
         if terminated or truncated:
             running = False
+        
+
 
         timestep += 1
 

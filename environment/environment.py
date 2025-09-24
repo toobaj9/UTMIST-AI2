@@ -799,11 +799,12 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
     BRAWL_TO_UNITS = 1.024 / 320  # Conversion factor
 
-    def __init__(self, mode: RenderMode=RenderMode.RGB_ARRAY, resolution: CameraResolution=CameraResolution.MEDIUM, train_mode: bool = False):
+    def __init__(self, mode: RenderMode=RenderMode.RGB_ARRAY, resolution: CameraResolution=CameraResolution.LOW, train_mode: bool = False):
         super(WarehouseBrawl, self).__init__()
 
         self.stage_width_tiles: float = 29.8
         self.stage_height_tiles: float = 16.8
+        self.number_of_platforms: int = 2
 
         self.mode = mode
         self.resolution = resolution
@@ -1023,7 +1024,6 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         for obj_name, obj in self.objects.items():
             # If player
             if not isinstance(obj, Player) or obj_name[0:len('SpawnerVFX')] == 'SpawnerVFX': #martin 2
-
                 obj.process()
             
         # Pre-process player step
@@ -1039,8 +1039,12 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
             if player.stocks <= 0:
                 self.terminated = True
                 self.win_signal.emit(agent='player' if agent == 1 else 'opponent')
+            if player.on_platform is not None:
+                platform_vel = player.on_platform.velocity
+                player.body.velocity = pymunk.Vec2d(platform_vel.x, platform_vel.y)
 
-        
+            
+
 
         # Process physics info
         for obj_name, obj in self.objects.items():
@@ -1166,40 +1170,79 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
     def close(self) -> None:
         self.camera.close()
+   
+   
+    def pre_solve_oneway(self, arbiter, space, data):
+        """
+        Handle one-way platform collision logic.
+        Allow players to pass through from below, but land on top.
+        Allow drop-through when S key is pressed.
+        """
+        player_shape, platform_shape = arbiter.shapes
+        player = player_shape.owner
+        
+        # Get collision normal (points from platform to player)
+        normal = arbiter.contact_point_set.normal
+        
+        # If player is coming from above (normal.y > 0), allow collision
+        # If player is coming from below/side (normal.y <= 0), ignore collision
+        if normal.y <= 0:
+            return False
+        
+        # Check if player is pressing S to drop through platform
+        if hasattr(player.input, 'key_status') and "S" in player.input.key_status:
+            if player.input.key_status["S"].held:
+                print("S was pressed")
+                player.on_platform = None
+                print(player.on_platform);
+                return False
+        
+        # Player is landing on platform from above - enable collision
+        player.on_platform = platform_shape.body
+        return True
+
+    def separate_player_platform(self, arbiter, space, data):
+        """
+        Called when player separates from platform.
+        """
+        player_shape, platform_shape = arbiter.shapes
+        player = player_shape.owner
+        player.on_platform = None
 
     def _setup(self):
-        # Collsion fix
-        handler = self.space.add_collision_handler(3, 4)  # (Player1 collision_type, Player2 collision_type)
+        # Collision fix - prevent players from colliding with each other
+        handler = self.space.add_collision_handler(PLAYER, PLAYER + 1)
         handler.begin = lambda *args, **kwargs: False
 
+        # Set up one-way platform collision for each player and platform combination
+        for player_num in range(2):
+            for platform_num in range(1, self.number_of_platforms + 1):
+                handler = self.space.add_collision_handler(PLAYER + player_num, PLATFORM + platform_num)
+                handler.pre_solve = self.pre_solve_oneway
+                handler.separate = self.separate_player_platform
+
         # Environment
-        ground = Ground(self.space, 0, 2.03, 10.67)
-        #platform1 = Ground(self.space, 5, 0, 2)  # First platform
-        #platform2 = Ground(self.space, 2, 3, 2)  # Second platform with a gap
+        ground1 = Ground(self.space, 6, 3, 10)
+        self.objects['ground1'] = ground1
 
-        self.objects['ground'] = ground
-        #self.objects['platform1'] = platform1
-        #self.objects['platform2'] = platform2
+        ground2 = Ground(self.space, -6, 3, 10)
+        self.objects['ground2'] = ground2
 
-        # Particle
-        #particle = Particle(self, [0, 0], 'test/unarmedgp.gif', scale=0.2)
-        #self.objects['particle'] = particle
+        # Create platforms with proper positioning
+        platform1 = Stage(self.space, 1, 0, 1, 2, 1, (100, 100, 200, 255))
+        self.objects['platform1'] = platform1
+        platform1.waypoint1 = (-2, 0)
+        platform1.waypoint2 = (2, 0)
 
-        # Target
-        #target = Target()
-        #self.objects['target'] = target
+        # stage2 = Stage(self.space, 2, 0, -1, 2, 1, (200, 100, 100, 255))
+        # self.objects['stage2'] = stage2
+        # stage2.waypoint1 = (-4, -1)
+        # platform2.waypoint2 = (4, -1)
 
-        # Players
-        # randomize start pos, binary
+        # Players setup (rest of your existing code)
         p1_right = bool(random.getrandbits(1))
-
-        # random between -5 and 5 
-        if self.train_mode:
-            p1_start_pos = [random.uniform(-5, 5), 0]
-            p2_start_pos = [random.uniform(-5, 5), 0]
-        else:
-            p1_start_pos = [5, 0] if p1_right else [-5, 0]
-            p2_start_pos = [-5, 0] if p1_right else [5, 0]
+        p1_start_pos = [5, 0] if p1_right else [-5, 0]
+        p2_start_pos = [-5, 0] if p1_right else [5, 0]
 
         p1 = Player(self, 0, start_position=p1_start_pos, color=[0, 0, 255, 255])
         p2 = Player(self, 1, start_position=p2_start_pos, color=[0, 255, 0, 255])
@@ -1227,7 +1270,6 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         self.weapon_controller = WeaponSpawnController(self.weapon_spawners)
 
         self.players += [p1, p2]
-
 
 # ### GameObject
 
@@ -1284,12 +1326,15 @@ class GameObject(ABC):
 
 # In[ ]:
 
+GROUND = 1
+PLAYER = 3
+PLATFORM = 5
 
 class Ground(GameObject):
     def __init__(self, space, x, y, width_ground, color=(150, 150, 150, 255)):
-        self.body = pymunk.Body(x, y, body_type=pymunk.Body.STATIC)
-        self.shape = pymunk.Poly.create_box(self.body, (width_ground, 0.1))#colin
-        self.shape.collision_type = 2 # Ground
+        self.body = pymunk.Body(body_type=pymunk.Body.STATIC)
+        self.shape = pymunk.Poly.create_box(self.body, (width_ground, 0.1))
+        self.shape.collision_type = GROUND  # Ground
         self.shape.owner = self
         self.shape.body.position = (x, y)
         self.shape.friction = 0.7
@@ -1302,31 +1347,123 @@ class Ground(GameObject):
         self.loaded = False
 
     def load_assets(self):
-        if self.loaded: return
+        if self.loaded:
+            return
         self.loaded = True
         self.bg_img = pygame.image.load('assets/map/bg.jpg')
         self.stage_img = pygame.image.load('assets/map/stage.png')
+        print("Ground is rendered")
 
     def render(self, canvas, camera) -> None:
         self.load_assets()
 
-        #self.draw_image(canvas, self.bg_img, (0, 0), 29.8, camera)
-        self.draw_image(canvas, self.stage_img, (0, 0.8), self.width_ground * 3.2, camera)
+        self.draw_image(canvas, self.stage_img, (self.shape.body.position.x, self.shape.body.position.y-(2.03-0.8)), self.width_ground * 3.2, camera)
+
+        self.draw_outline(canvas,camera)
+
+    def draw_outline(self, canvas, camera):
+      # 1. Get the vertices of the shape (in local body space)
+      local_vertices = self.shape.get_vertices()
+
+      # 2. Convert to world space (apply rotation and position)
+      world_vertices = [v.rotated(self.body.angle) + self.body.position for v in local_vertices]
+
+      # 3. Convert to screen space using camera.gtp()
+      screen_points = [camera.gtp(v) for v in world_vertices]
+
+      # 4. Draw red outline
+      pygame.draw.polygon(canvas, (255, 0, 0), screen_points, width=2)#martin
 
 class Stage(GameObject):
-    def __init__(self, space, x, y, width, height, color=(150, 150, 150, 255)):
-        self.body = pymunk.Body(x, y, body_type=pymunk.Body.STATIC)
-        self.shape = pymunk.Poly.create_box(self.body, (width, height))
-        self.shape.body.position = (x + width // 2, y)
-        self.shape.friction = 0.7
+    def __init__(self, space, platform_id: int, x, y, width, height, color=(150, 150, 150, 255)):
+        self.body = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
+        self.body.position = (x, y)  # Set initial position
+        self.shape = pymunk.Poly.create_box(self.body, (width, height * 0.1))
+        self.shape.friction = 0.9  # Add some friction so players can walk normally
         self.shape.color = color
-
-        self.shape.filter = pymunk.ShapeFilter(categories=GROUND_CAT, mask=ALL_CATS)
-
+        self.shape.collision_type = PLATFORM + platform_id
+        self.shape.platform_id = platform_id  # Store platform ID for reference
         space.add(self.shape, self.body)
+        self.width = width
+        self.height = height
+        self.loaded = False
+        self.velocity_x = 0;
+        self.velocity_y = 0;
+
+        # Movement config
+        self.waypoint1 = (0, 0)
+        self.waypoint2 = (0, 0)
+        self.moving_to_w2 = True
+
+    def load_assets(self):
+        if self.loaded: return
+        self.loaded = True
+        self.bg_img = pygame.image.load('assets/map/bg.jpg')
+        self.platform_img = pygame.image.load('assets/map/platform.png')
+        print("Stage is rendered")
 
     def render(self, canvas, camera) -> None:
-        pass
+        self.load_assets()
+        self.draw_image(canvas, self.platform_img, (self.body.position.x, self.body.position.y), self.width, camera)
+        self.draw_outline(canvas, camera)
+
+    def draw_outline(self, canvas, camera):
+        # 1. Get the vertices of the shape (in local body space)
+        local_vertices = self.shape.get_vertices()
+
+        # 2. Convert to world space (apply rotation and position)
+        world_vertices = [v.rotated(self.body.angle) + self.body.position for v in local_vertices]
+
+        # 3. Convert to screen space using camera.gtp()
+        screen_points = [camera.gtp(v) for v in world_vertices]
+
+        # 4. Draw red outline
+        pygame.draw.polygon(canvas, (255, 0, 0), screen_points, width=2)
+
+    def physics_process(self, deltaTime: float) -> None:
+        """Move between waypoints with smooth acceleration/deceleration."""
+        import math
+
+        currentPos = self.body.position
+        target = self.waypoint2 if self.moving_to_w2 else self.waypoint1
+
+        dx = target[0] - currentPos[0]
+        dy = target[1] - currentPos[1]
+        dist = math.sqrt(dx*dx + dy*dy)
+
+        # If we're very close to the target, stop and swap direction
+        if dist < 0.1:
+            self.body.velocity = (0, 0)
+            self.moving_to_w2 = not self.moving_to_w2
+            return
+
+        # Direction vector (normalized)
+        dir_x = dx / dist
+        dir_y = dy / dist
+
+        # Segment vector and length
+        seg_x = self.waypoint2[0] - self.waypoint1[0]
+        seg_y = self.waypoint2[1] - self.waypoint1[1]
+        seg_len = max(math.sqrt(seg_x*seg_x + seg_y*seg_y), 0.05)
+
+        # Projection of current position onto the segment
+        # (how far along the path we are, normalized 0→1)
+        rel_x = currentPos[0] - self.waypoint1[0]
+        rel_y = currentPos[1] - self.waypoint1[1]
+        progress = (rel_x * seg_x + rel_y * seg_y) / (seg_len * seg_len)
+        progress = max(0.0, min(1.0, progress))  # clamp to [0, 1]
+
+        # Smooth speed profile: cosine-shaped ease-in/out
+        # At 0 or 1 → 0 speed, at 0.5 → max speed
+        base_speed = 5.0   # maximum speed at midpoint
+        speed = base_speed * math.sin(progress * math.pi) + 0.03 ;
+
+        # Apply velocity
+        velocity_x = dir_x * speed 
+        velocity_y = dir_y * speed ;
+        self.body.velocity = (velocity_x, velocity_y)
+
+
 
 class Target(GameObject):
     def __init__(self):
@@ -1694,6 +1831,11 @@ class WalkingState(GroundState):
         # Check for dash
         if self.p.input.key_status["l"].just_pressed:
             return self.p.states['dash']
+        
+        if self.p.shape.cache_bb().intersects(self.p.env.objects['platform1'].shape.cache_bb()) and not self.p.input.key_status["S"].held:
+            self.p.body.velocity = pymunk.Vec2d(int(self.p.facing) * self.p.move_speed + self.p.env.objects['platform1'].body.velocity[0], self.p.body.velocity.y + self.p.env.objects['platform1'].body.velocity[1])
+            return None;
+                
 
         # Handle movement
         self.p.body.velocity = pymunk.Vec2d(int(self.p.facing) * self.p.move_speed, self.p.body.velocity.y)
@@ -1752,6 +1894,9 @@ class StandingState(GroundState):
         if abs(direction) > 1e-2:
             self.p.facing = Facing.from_direction(direction)
             return self.p.states['walking']
+        if self.p.shape.cache_bb().intersects(self.p.env.objects['platform1'].shape.cache_bb()) and not self.p.input.key_status["S"].held:
+            self.p.body.velocity = pymunk.Vec2d(self.p.env.objects['platform1'].body.velocity[0],self.p.env.objects['platform1'].body.velocity[1])
+            return None
 
 
         # gradual ease
@@ -2820,7 +2965,6 @@ class Player(GameObject):
 
         hitbox_size = Capsule.get_hitbox_size(290//2, 320//2)
         self.hurtbox_collider = CapsuleCollider(center=(0, 0), width=hitbox_size[0], height=hitbox_size[1])
-
         self.start_position = start_position
 
         # Create input handlers
@@ -2909,7 +3053,7 @@ class Player(GameObject):
 
         # Create PyMunk Object
         self.shape = pymunk.Poly.create_box(None, size=(width, height))
-        self.shape.collision_type = 3 if agent_id == 0 else 4
+        self.shape.collision_type = PLAYER if agent_id == 0 else PLAYER + 1
         self.shape.owner = self
         #self.moment = pymunk.moment_for_poly(self.mass, self.shape.get_vertices())
         self.moment = 1e9
@@ -2940,6 +3084,7 @@ class Player(GameObject):
         self.jump_cooldown = self.env.fps * 0.5
         self.dash_time = self.env.fps * 0.3
         self.dash_cooldown = 8
+        self.on_platform = None
 
         # Signals
         self.just_got_hit = False
@@ -3101,10 +3246,6 @@ class Player(GameObject):
 
         self.assets_loaded = True
 
-    def is_on_floor(self) -> bool:
-        old_cond = (abs(self.body.position.y - 1.540) < 0.03 and abs(self.body.position.x) < 5.77)
-        return self.shape.cache_bb().intersects(self.env.objects['ground'].shape.cache_bb()) or old_cond
-        #return abs(self.body.position.y - 1.540) < 0.03 and abs(self.body.position.x) < 5.77
 
     def set_gravity_disabled(self, disabled:bool) -> None:
         self.body.gravity_scale = 0 if disabled else 1
@@ -3173,6 +3314,14 @@ class Player(GameObject):
                     a = -1
                 GameObject.draw_image(camera.canvas, image, [self.body.position[0]-a*0.1,self.body.position[1]+0.27], 1.4, camera, flipped=flipped)
             
+
+    def is_on_floor(self) -> bool:
+        if(self.shape.cache_bb().intersects(self.env.objects['ground1'].shape.cache_bb()) or
+           self.shape.cache_bb().intersects(self.env.objects['ground2'].shape.cache_bb())):
+            return True 
+        if(self.shape.cache_bb().intersects(self.env.objects['platform1'].shape.cache_bb()) and self.body.position[1] <= self.env.objects['platform1'].body.position[1]):#mohamed
+            return True
+        return False
 
 
     def set_hitboxes_to_draw(self, hitboxes: Optional[List[Any]]=None,
@@ -3352,7 +3501,7 @@ class Player(GameObject):
         self.body.velocity = (self.body.velocity.x + self.damage_velocity[0] + self.target_vel[0],
                               self.body.velocity.y + self.damage_velocity[1] + self.target_vel[1])
 
-
+       # print(self.body.velocity)
         if new_state is not None:
             new_state.reset(self.state)
             self.state.exit()
