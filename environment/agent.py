@@ -1415,7 +1415,7 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
     pygame.mixer.music.play(-1)
 
     # Optional: set volume (0.0 to 1.0)
-    pygame.mixer.music.set_volume(0.25)
+    pygame.mixer.music.set_volume(0.0)
 
 
     resolutions = {
@@ -1424,13 +1424,11 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
         CameraResolution.HIGH: (1080, 1920)
     }
     
-    #screen = pygame.display.set_mode((1920, 1080))  # Set screen dimensions
     screen = pygame.display.set_mode(resolutions[resolution][::-1])  # Set screen dimensions
+
+
     pygame.display.set_caption("AI Squared - Player vs AI Demo")
-    screen.fill((0, 0, 0))  # Fill screen with black
-    rect = screen_surface.get_rect(center=screen.get_rect().center)
-    #screen.blit(screen_surface, rect)
-  #  pygame.display.flip()
+
     clock = pygame.time.Clock()
 
     # Initialize environment
@@ -1445,20 +1443,20 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
     # Run the match loop
     running = True
     timestep = 0
-    platform1 = env.objects["platform1"]
+   # platform1 = env.objects["platform1"] #mohamed
     #stage2 = env.objects["stage2"]
+    background_image = pygame.image.load('assets/map/bg.jpg').convert() 
     while running and timestep < max_timesteps:
         # Pygame event to handle real-time user input 
+       
+        
+    
         for event in pygame.event.get():
             if event.type == QUIT:
                 running = False
             if event.type == pygame.VIDEORESIZE:
                  screen = pygame.display.set_mode(event.size, pygame.RESIZABLE)
-        scaled = pygame.transform.smoothscale(screen_surface, screen.get_size())
-        screen.blit(scaled, (0, 0))
-        platform1.physics_process(2)
-       # stage2.physics_process(0.05)
-        # User input
+       
         action_1 = agent_1.predict(obs_1)
 
         # AI input
@@ -1471,8 +1469,10 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
         obs_2 = observations[1]
 
         # Render the game
+        
         img = env.render()
         screen.blit(pygame.surfarray.make_surface(img), (0, 0))
+     
         pygame.display.flip()
 
         # Control frame rate (30 fps)

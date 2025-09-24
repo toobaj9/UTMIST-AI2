@@ -2,7 +2,6 @@
 
 # In[ ]:
 from constants import PLAYER_CAT, GROUND_CAT, WEAPON_CAT, ALL_CATS  
-
 import warnings
 from typing import TYPE_CHECKING, Any, Generic, \
  SupportsFloat, TypeVar, Type, Optional, List, Dict, Callable
@@ -37,6 +36,7 @@ import skimage.transform as st
 import skvideo
 import skvideo.io
 from IPython.display import Video
+
 
 
 # ### MalachiteEnv Class
@@ -520,6 +520,17 @@ class RenderMode(Enum):
     PYGAME_WINDOW = 2
 
 class Camera():
+    background_image = pygame.image.load('assets/map/martin.png')
+
+    scale_factor = 0.72
+    new_width = int(background_image.get_width() * scale_factor)
+    new_height = int(background_image.get_height() * scale_factor)
+
+    background_image = pygame.transform.scale(
+        background_image,
+        (new_width, new_height)
+    )
+
     screen_width_tiles: float = 29.8
     screen_height_tiles: float = 16.8
     pixels_per_tile: float = 43
@@ -608,7 +619,9 @@ class Camera():
         if mode == RenderMode.RGB_ARRAY:
             self.canvas = pygame.Surface((self.window_width, self.window_height))
         #canvas = pygame.display.set_mode((self.window_width, self.window_height))
-        self.canvas.fill((0, 0, 0))
+        #self.canvas.fill((0, 0, 0))
+        self.canvas.blit(self.background_image, (0, 0))   
+        
 
         # Transform PyMunk objects to have (0,0) at center, and such that units are appropriate
         #center_x = self.window_width // 2
@@ -1012,6 +1025,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         
 
     def step(self, action: dict[int, np.ndarray]):
+        
         # Create new rewards dict
         self.cur_action = action
         self.rewards = {agent: 0 for agent in self.agents}
@@ -1023,7 +1037,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         # Process all other steps
         for obj_name, obj in self.objects.items():
             # If player
-            if not isinstance(obj, Player) or obj_name[0:len('SpawnerVFX')] == 'SpawnerVFX': #martin 2
+            if not isinstance(obj, Player) or obj_name[0:len('SpawnerVFX')] == 'SpawnerVFX': 
                 obj.process()
             
         # Pre-process player step
@@ -1056,7 +1070,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
           # --- Press 'V' to place a DroppedWeaponSpawner of the player's current weapon ---
         DroppedWeaponSpawner.try_drop(self)
        
-        if hasattr(self, "weapon_controller"):#martin
+        if hasattr(self, "weapon_controller"):
             self.weapon_controller.try_pick_up_all(self.players, self.steps)
             self.weapon_controller.update(self.steps)
 
@@ -1186,6 +1200,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         
         # If player is coming from above (normal.y > 0), allow collision
         # If player is coming from below/side (normal.y <= 0), ignore collision
+        """
         if normal.y <= 0:
             return False
         
@@ -1196,10 +1211,15 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
                 player.on_platform = None
                 print(player.on_platform);
                 return False
-        
+        if player.start_position[1] < platform_shape.owner.body.position[1]:
+            return False;
         # Player is landing on platform from above - enable collision
         player.on_platform = platform_shape.body
         return True
+        """
+        return True
+        
+        
 
     def separate_player_platform(self, arbiter, space, data):
         """
@@ -1211,6 +1231,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
     def _setup(self):
         # Collision fix - prevent players from colliding with each other
+       
         handler = self.space.add_collision_handler(PLAYER, PLAYER + 1)
         handler.begin = lambda *args, **kwargs: False
 
@@ -1222,17 +1243,20 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
                 handler.separate = self.separate_player_platform
 
         # Environment
-        ground1 = Ground(self.space, 6, 3, 10)
+        ground1 = Ground(self.space, 4.5, 1, 10)
         self.objects['ground1'] = ground1
 
-        ground2 = Ground(self.space, -6, 3, 10)
+        ground2 = Ground(self.space, -4.5, 3, 10)
         self.objects['ground2'] = ground2
 
         # Create platforms with proper positioning
         platform1 = Stage(self.space, 1, 0, 1, 2, 1, (100, 100, 200, 255))
+        # def __init__(self, space, platform_id: int, x, y, width, height, color=(150, 150, 150, 255)):
         self.objects['platform1'] = platform1
-        platform1.waypoint1 = (-2, 0)
-        platform1.waypoint2 = (2, 0)
+
+        
+        platform1.waypoint1 = (1, 0.0)
+        platform1.waypoint2 = (-1, 2.0)
 
         # stage2 = Stage(self.space, 2, 0, -1, 2, 1, (200, 100, 100, 255))
         # self.objects['stage2'] = stage2
@@ -1263,10 +1287,11 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
 
         self.weapon_pool = WeaponPool(self.weapon_images)
-        self.weapon_spawners = [
-            WeaponSpawner(self.camera, 1, self, self.weapon_pool, pos=[random.randint(-5,5),1.75], cooldown_frames=random.randint(300,500), despawn_frames=350), #martin 2
-            WeaponSpawner(self.camera, 2, self, self.weapon_pool, pos=[random.randint(-5,5),1.75], cooldown_frames=random.randint(300,500), despawn_frames=350), 
-        ]
+        self.weapon_spawners = []
+ 
+        self.weapon_spawners.append(WeaponSpawner(self.camera, 0, self, self.weapon_pool, pos=[random.uniform(2.6,6.5), 0+0.7], cooldown_frames=random.randint(500,700), despawn_frames=350))
+        self.weapon_spawners.append(WeaponSpawner(self.camera, 1, self, self.weapon_pool, pos=[-random.uniform(2.6,6.5), 2+0.7], cooldown_frames=random.randint(500,700), despawn_frames=350))
+          
         self.weapon_controller = WeaponSpawnController(self.weapon_spawners)
 
         self.players += [p1, p2]
@@ -1289,7 +1314,7 @@ class GameObject(ABC):
 
     @staticmethod
     def draw_image(canvas, img, pos, desired_width, camera, flipped: bool = False):
-        """#kaden
+        """
         Draws an image onto the canvas while correctly handling scaling and positioning.
 
         Parameters:
@@ -1333,7 +1358,23 @@ PLATFORM = 5
 class Ground(GameObject):
     def __init__(self, space, x, y, width_ground, color=(150, 150, 150, 255)):
         self.body = pymunk.Body(body_type=pymunk.Body.STATIC)
-        self.shape = pymunk.Poly.create_box(self.body, (width_ground, 0.1))
+        width = width_ground #- 3
+        height_up = 0.0
+        height_down = -4.0
+
+        # Define rectangle vertices
+        verts = [
+            (-width/4,  height_up-0.15),     # top left
+            ( width/4,  height_up-0.15),     # top right
+            ( width/4, -height_down),   # bottom right
+            (-width/4, -height_down)    # bottom left
+        ]
+
+        self.shape = pymunk.Poly(self.body, verts)
+
+        self.shape.sensor = False
+        self.shape.elasticity = 0.0 
+       # self.shape = pymunk.Poly.create_box(self.body, (width_ground, 0.1))
         self.shape.collision_type = GROUND  # Ground
         self.shape.owner = self
         self.shape.body.position = (x, y)
@@ -1341,10 +1382,11 @@ class Ground(GameObject):
         self.shape.color = color
         
         self.width_ground = width_ground
-        #colin
+
         self.shape.filter = pymunk.ShapeFilter(categories=GROUND_CAT, mask=ALL_CATS)
         space.add(self.shape, self.body)
         self.loaded = False
+        
 
     def load_assets(self):
         if self.loaded:
@@ -1359,7 +1401,7 @@ class Ground(GameObject):
 
         self.draw_image(canvas, self.stage_img, (self.shape.body.position.x, self.shape.body.position.y-(2.03-0.8)), self.width_ground * 3.2, camera)
 
-        self.draw_outline(canvas,camera)
+      #  self.draw_outline(canvas,camera)
 
     def draw_outline(self, canvas, camera):
       # 1. Get the vertices of the shape (in local body space)
@@ -1372,20 +1414,25 @@ class Ground(GameObject):
       screen_points = [camera.gtp(v) for v in world_vertices]
 
       # 4. Draw red outline
-      pygame.draw.polygon(canvas, (255, 0, 0), screen_points, width=2)#martin
+      pygame.draw.polygon(canvas, (255, 0, 0), screen_points, width=2)
 
 class Stage(GameObject):
     def __init__(self, space, platform_id: int, x, y, width, height, color=(150, 150, 150, 255)):
+        
         self.body = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
         self.body.position = (x, y)  # Set initial position
-        self.shape = pymunk.Poly.create_box(self.body, (width, height * 0.1))
+        self.shape = pymunk.Poly.create_box(self.body, (width, height * 0.1+0.1))
         self.shape.friction = 0.9  # Add some friction so players can walk normally
+        self.shape.elasticity = 0.0
         self.shape.color = color
         self.shape.collision_type = PLATFORM + platform_id
         self.shape.platform_id = platform_id  # Store platform ID for reference
+        self.shape.owner = self;
         space.add(self.shape, self.body)
         self.width = width
         self.height = height
+
+
         self.loaded = False
         self.velocity_x = 0;
         self.velocity_y = 0;
@@ -1394,6 +1441,8 @@ class Stage(GameObject):
         self.waypoint1 = (0, 0)
         self.waypoint2 = (0, 0)
         self.moving_to_w2 = True
+
+        self.shape.sensor = False
 
     def load_assets(self):
         if self.loaded: return
@@ -1405,7 +1454,7 @@ class Stage(GameObject):
     def render(self, canvas, camera) -> None:
         self.load_assets()
         self.draw_image(canvas, self.platform_img, (self.body.position.x, self.body.position.y), self.width, camera)
-        self.draw_outline(canvas, camera)
+      #  self.draw_outline(canvas, camera)
 
     def draw_outline(self, canvas, camera):
         # 1. Get the vertices of the shape (in local body space)
@@ -1455,10 +1504,11 @@ class Stage(GameObject):
 
         # Smooth speed profile: cosine-shaped ease-in/out
         # At 0 or 1 → 0 speed, at 0.5 → max speed
-        base_speed = 5.0   # maximum speed at midpoint
+        base_speed = 1# maximum speed at midpoint
         speed = base_speed * math.sin(progress * math.pi) + 0.03 ;
 
         # Apply velocity
+ 
         velocity_x = dir_x * speed 
         velocity_y = dir_y * speed ;
         self.body.velocity = (velocity_x, velocity_y)
@@ -1832,7 +1882,7 @@ class WalkingState(GroundState):
         if self.p.input.key_status["l"].just_pressed:
             return self.p.states['dash']
         
-        if self.p.shape.cache_bb().intersects(self.p.env.objects['platform1'].shape.cache_bb()) and not self.p.input.key_status["S"].held:
+        if self.p.shape.cache_bb().intersects(self.p.env.objects['platform1'].shape.cache_bb()) and not self.p.input.key_status["S"].held and self.p.is_on_floor():
             self.p.body.velocity = pymunk.Vec2d(int(self.p.facing) * self.p.move_speed + self.p.env.objects['platform1'].body.velocity[0], self.p.body.velocity.y + self.p.env.objects['platform1'].body.velocity[1])
             return None;
                 
@@ -1894,7 +1944,7 @@ class StandingState(GroundState):
         if abs(direction) > 1e-2:
             self.p.facing = Facing.from_direction(direction)
             return self.p.states['walking']
-        if self.p.shape.cache_bb().intersects(self.p.env.objects['platform1'].shape.cache_bb()) and not self.p.input.key_status["S"].held:
+        if self.p.shape.cache_bb().intersects(self.p.env.objects['platform1'].shape.cache_bb()) and not self.p.input.key_status["S"].held and self.p.is_on_floor():
             self.p.body.velocity = pymunk.Vec2d(self.p.env.objects['platform1'].body.velocity[0],self.p.env.objects['platform1'].body.velocity[1])
             return None
 
@@ -2818,7 +2868,7 @@ class AnimationSprite2D(GameObject):
         if not os.path.exists(animation_folder):
             print(f"Assets folder {animation_folder} not found!")
             return
-        #gigi
+
         for category in os.listdir(animation_folder):
             category_path = os.path.join(animation_folder, category)
             if os.path.isdir(category_path):
@@ -2955,7 +3005,7 @@ class Player(GameObject):
     PLAYER_RADIUS = 10
 
     def __init__(self, env, agent_id: int, start_position=[0,0], color=[200, 200, 0, 255]):
-        self.weapon = "Punch" #martin
+        self.weapon = "Punch"
         
         self.env = env
 
@@ -3102,7 +3152,6 @@ class Player(GameObject):
         self.attack_sprite = AnimationSprite2D(self.env.camera, 2.0, 'assets/attacks', agent_id)
 
  
-        #colin
         self.shape.filter = pymunk.ShapeFilter(
     categories=PLAYER_CAT,
     mask=ALL_CATS & ~WEAPON_CAT
@@ -3212,7 +3261,7 @@ class Player(GameObject):
             MoveType.RECOVERY : ('alup', 'unarmedrecovery'),
             MoveType.GROUNDPOUND : ('algroundpound', {16: ['unarmedgp', 'unarmedgp_held'], 17: 'unarmedgp_end', 18: 'unarmedgp_end', 19: 'unarmedgp_end'}),
         }
-        #kaden
+
 
     def apply_damage(self, damage_default: float, stun_dealt: int=0, velocity_dealt: Tuple[float, float]=(0,0)):
         self.damage = min(700, self.damage + damage_default)
@@ -3294,7 +3343,7 @@ class Player(GameObject):
         pygame.draw.circle(camera.canvas, cc, screen_pos, camera.scale_gtp() * 0.25)
 
 
-          #kaden
+       
        
        #  self.draw_image(camera.canvas, self.frames[self.current_frame_index], self.position, self.scale * width, camera, flipped=flipped)
         if not isinstance(self.state, AttackState) and not issubclass(self.state.__class__, AttackState):
@@ -3307,21 +3356,28 @@ class Player(GameObject):
 
                 pos = camera.gtp(self.body.position)
                 dimensions = camera.gtp(dimensions)
-            #kaden 
+
                 if(flipped):
                     a = 1
                 else: 
                     a = -1
                 GameObject.draw_image(camera.canvas, image, [self.body.position[0]-a*0.1,self.body.position[1]+0.27], 1.4, camera, flipped=flipped)
             
-
     def is_on_floor(self) -> bool:
-        if(self.shape.cache_bb().intersects(self.env.objects['ground1'].shape.cache_bb()) or
-           self.shape.cache_bb().intersects(self.env.objects['ground2'].shape.cache_bb())):
-            return True 
-        if(self.shape.cache_bb().intersects(self.env.objects['platform1'].shape.cache_bb()) and self.body.position[1] <= self.env.objects['platform1'].body.position[1]):#mohamed
+        # Check collision with either ground
+        if (self.shape.cache_bb().intersects(self.env.objects['ground1'].shape.cache_bb()) and
+            self.body.position[1] <= self.env.objects['ground1'].body.position[1]):
             return True
+        if(self.shape.cache_bb().intersects(self.env.objects['ground2'].shape.cache_bb()) and 
+            self.body.position[1] <= self.env.objects['ground2'].body.position[1]):
+            return True
+
+        # Check collision with platform1, but only if the player is above or at its level
+        if self.shape.cache_bb().intersects(self.env.objects['platform1'].shape.cache_bb()) and self.body.position[1] <= self.env.objects['platform1'].body.position[1] -0.01 and (self.env.objects['platform1'].body.position[0] - 1.25) <= self.body.position.x <= (self.env.objects['platform1'].body.position[0]  + 1.25):
+            return True
+
         return False
+
 
 
     def set_hitboxes_to_draw(self, hitboxes: Optional[List[Any]]=None,
@@ -3700,7 +3756,7 @@ class WeaponGO(GameObject):
             body  = pymunk.Body(mass=100, moment=1e9)
             shape.body = body
             body.position = tuple(self.world_pos)
-            shape.friction = 0.0
+            shape.friction = 100000000000
             shape.elasticity = 1
             shape.collision_type = 5  # weapon; ground is 2 in your env
             shape.owner = self
@@ -3741,7 +3797,7 @@ class WeaponGO(GameObject):
             self.world_pos[1] = float(self.body.position.y)
         """ if self.active:
             pass
-            #colin
+   
             self.world_pos[1] += self.fall_speed"""
 
     def render(self, surface, camera):
@@ -3750,8 +3806,6 @@ class WeaponGO(GameObject):
             # same converter your Player uses (you called camera.gtp elsewhere)
             sx, sy = camera.gtp((self.world_pos[0], self.world_pos[1]))
 
-          #  rect = self.image.get_rect(center=(int(sx), int(sy)))
-           # surface.blit(self.image, rect) #for testing, martin 2
 
     def frames_alive(self, current_frame):
         return current_frame - self.spawn_frame
@@ -3810,7 +3864,7 @@ class WeaponSpawner:
 
 
         #spear_img = pygame.Surface((40,16), pygame.SRCALPHA)
-        #hitbox_size = Capsule.get_hitbox_size(290//2, 320//2)#david
+        #hitbox_size = Capsule.get_hitbox_size(290//2, 320//2)
         #self.hurtbox_collider = CapsuleCollider(center=(0, 0), width=hitbox_size[0], height=hitbox_size[1])
 
         weapon_center = (float(w.world_pos[0]), float(w.world_pos[1]))
@@ -3905,12 +3959,19 @@ class WeaponSpawner:
             return
         #spawn if cooldown is over
         if current_frame - self.last_spawn_frame >= self.cooldown_frames:
-            if number_active_spawners <= 2: #kaden
+            if number_active_spawners <= 2:
                 self.spawn_weapon(current_frame)
                 self.flag = False
 
-    def spawn_weapon(self, current_frame):#martin
-        self.world_pos = [random.randint(-5,5),1.75]
+    def spawn_weapon(self, current_frame):
+        y_pos = self.world_pos[1]
+        if(y_pos == 0+0.7):
+            x_pos = random.uniform(2.6,6.5)#2
+        else:
+            x_pos = -random.uniform(2.6,6.5)
+
+        self.world_pos = [x_pos,y_pos]
+
         if random.randint(0, 1) == 0:
             name = "Spear"
         else:
@@ -3951,7 +4012,6 @@ class WeaponSpawnController:
 
 
     def try_pick_up_all(self, players: List[Player],current_frame):
-       # print(len(self.spawners)) #martin
         for spawner in self.spawners:
 
             for p in players:
@@ -4036,7 +4096,7 @@ class DroppedWeaponSpawner(WeaponSpawner):
     def update(self, current_frame, number_active_spawners):
         if(self.active_weapon != None):
             if(self.active_weapon.active):
-                self.vfx.world_pos = self.active_weapon.world_pos #colin
+                self.vfx.world_pos = self.active_weapon.world_pos 
                 self.vfx.flipped = self.flipped
               
 
@@ -4082,7 +4142,7 @@ class DroppedWeaponSpawner(WeaponSpawner):
 
 
         #spear_img = pygame.Surface((40,16), pygame.SRCALPHA)
-        #hitbox_size = Capsule.get_hitbox_size(290//2, 320//2)#david
+        #hitbox_size = Capsule.get_hitbox_size(290//2, 320//2)
         #self.hurtbox_collider = CapsuleCollider(center=(0, 0), width=hitbox_size[0], height=hitbox_size[1])
 
         weapon_center = (float(w.world_pos[0]), float(w.world_pos[1]))
@@ -4160,7 +4220,7 @@ class DroppedWeaponSpawner(WeaponSpawner):
         return True
         
 
-    def try_drop(wb):#martin
+    def try_drop(wb):
            
         if hasattr(wb, "weapon_controller"):
             # lazy unique id
@@ -4212,9 +4272,9 @@ class DroppedWeaponSpawner(WeaponSpawner):
                         id=new_id,
                         env=wb,
                         pool=wb.weapon_pool,
-                        pos=[pos[0]-a*0.1,pos[1]+0.27],#kaden
+                        pos=[pos[0]-a*0.1,pos[1]+0.27],
                         weapon_name=current_weapon,
-                        lifetime_frames=250, #caleb             # tweak as desired
+                        lifetime_frames=250,     # tweak as desired
                         vfx_folder="", # distinct look for dropped
                         scale=1.0,flipped=flipped
                     )
