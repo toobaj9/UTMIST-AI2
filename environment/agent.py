@@ -1415,8 +1415,7 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
     pygame.mixer.music.play(-1)
 
     # Optional: set volume (0.0 to 1.0)
-    pygame.mixer.music.set_volume(0.0)
-
+    pygame.mixer.music.set_volume(0.2)
 
     resolutions = {
         CameraResolution.LOW: (480, 720),

@@ -926,7 +926,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         
         # Moving Platforms: Unnormalized, two observations to denote platform position and moving direction 
         obs_helper.add_section([-1, -1], [1, 1], f"{name}_moving_platform_pos")
-        obs_helper.add_section([0], [1], f"{name}_moving_platform_dir")
+        obs_helper.add_section([-1, -1], [1, 1], f"{name}_moving_platform_vel")
         
     def get_action_space(self):
         act_helper = ActHelper()
@@ -3151,11 +3151,10 @@ class Player(GameObject):
         self.animation_sprite_2d = AnimationSprite2D(self.env.camera, 1.0, 'assets/player', agent_id)
         self.attack_sprite = AnimationSprite2D(self.env.camera, 2.0, 'assets/attacks', agent_id)
 
- 
         self.shape.filter = pymunk.ShapeFilter(
-    categories=PLAYER_CAT,
-    mask=ALL_CATS & ~WEAPON_CAT
-)
+            categories=PLAYER_CAT,
+            mask=ALL_CATS & ~WEAPON_CAT
+        )
 
         # Weapon mapping
         self.weapon_mapping = {
@@ -3163,6 +3162,9 @@ class Player(GameObject):
             "Spear": 1,
             "Hammer": 2
         }
+
+        # Accessing env to get moving platform's pos and vel for obs space
+        self.PLATFORM: pymunk.Body = self.env.objects["platform1"]
 
     def get_obs(self) -> list[float]:
 
@@ -3208,7 +3210,6 @@ class Player(GameObject):
         # Current held weapon type
         obs.append(self.weapon_mapping[self.weapon])
       
-
         # Spawner positions
         for i in range(4):
             try:
@@ -3236,7 +3237,17 @@ class Player(GameObject):
                 # If current spawner inactive (out of index), set as zero array
                 obs.extend([0, 0, 0])
 
-        # TODO: Platform position + heading directions 
+        # Platform position + heading directions:
+        # Clamp values to [-1, 1] (or replace with proper normalization if needed)
+        platform_pos = self.PLATFORM.body.position
+        x_platform_norm = max(-18, min(18, platform_pos.x))
+        y_platform_norm = max(-7, min(7, platform_pos.y))
+        obs.extend([x_platform_norm, y_platform_norm])
+
+        platform_vel = self.PLATFORM.body.velocity
+        vx_platform_norm = max(-10.0, min(10.0, platform_vel.x))
+        vy_platform_norm = max(-10.0, min(10.0, platform_vel.y))
+        obs.extend([vx_platform_norm, vy_platform_norm])
 
         return obs
 
