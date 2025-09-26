@@ -12,6 +12,7 @@ from dataclasses import dataclass, field, MISSING
 from collections import defaultdict
 from functools import partial
 from typing import Tuple, Any
+from tqdm import tqdm
 
 from PIL import Image, ImageSequence
 import matplotlib.pyplot as plt
@@ -47,6 +48,12 @@ from IPython.display import Video
 ObsType = TypeVar("ObsType")
 ActType = TypeVar("ActType")
 AgentID = TypeVar("AgentID")
+
+class GameMode(Enum):
+    STANDARD = 0
+    ATTACK_DEBUG = 1
+
+
 
 # Reference PettingZoo AECEnv
 class MalachiteEnv(ABC, Generic[ObsType, ActType, AgentID]):
@@ -810,6 +817,8 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
     def __init__(self, mode: RenderMode=RenderMode.RGB_ARRAY, resolution: CameraResolution=CameraResolution.MEDIUM, train_mode: bool = False):
         super(WarehouseBrawl, self).__init__()
 
+        self.game_mode: GameMode = GameMode.ATTACK_DEBUG
+
         self.stage_width_tiles: float = 29.8
         self.stage_height_tiles: float = 16.8
 
@@ -823,7 +832,10 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         # Params
         self.fps = 30
         self.dt = 1 / self.fps
-        self.max_timesteps = self.fps * 90
+        if self.game_mode == GameMode.ATTACK_DEBUG:
+            self.max_timesteps = self.fps * 99999
+        else:
+            self.max_timesteps = self.fps * 90
 
         self.agent_1_name = 'Team 1'
         self.agent_2_name = 'Team 2'
@@ -848,6 +860,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
             self.action_spaces[agent_id] = self.action_space
             self.observation_spaces[agent_id] = self.observation_space
 
+        
         self.load_attacks()
 
         self.reset()
@@ -980,24 +993,33 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
             name = name.split(" ")[1]
 
             if name not in self.keys.keys(): continue
-            with open(os.path.join('unarmed_attacks', file)) as f:
-                move_data = json.load(f)
+            try:
+                with open(os.path.join('unarmed_attacks', file)) as f:
+                    move_data = json.load(f)
+            except Exception as e:
+                print(f"Error loading {file}: {e}")
 
             self.attacks[self.keys[name]] = move_data 
 
         for file in sorted(os.listdir('spear_attacks')):
             name = file.split('.')[0].split(" ")[1]
             if name not in self.keys.keys(): continue
-            with open(os.path.join('spear_attacks', file)) as f:
-                move_data = json.load(f)
+            try:
+                with open(os.path.join('spear_attacks', file)) as f:
+                    move_data = json.load(f)
+            except Exception as e:
+                print(f"Error loading {file}: {e}")
 
             self.spear_attacks[self.keys[name]] = move_data 
 
         for file in sorted(os.listdir('hammer_attacks')):
             name = file.split('.')[0].split(" ")[1]
             if name not in self.keys.keys(): continue
-            with open(os.path.join('hammer_attacks', file)) as f:
-                move_data = json.load(f)
+            try:
+                with open(os.path.join('hammer_attacks', file)) as f:
+                    move_data = json.load(f)
+            except Exception as e:
+                print(f"Error loading {file}: {e}")
 
             self.hammer_attacks[self.keys[name]] = move_data 
 
@@ -1031,6 +1053,10 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         for agent in self.agents:
             player = self.players[agent]
             player.process(action[agent])
+
+            if self.game_mode == GameMode.ATTACK_DEBUG and action[agent][9] > 0.5:
+                print("DEBUG: Reloading attack data")
+                self.load_attacks()
             if player.stocks <= 0:
                 self.terminated = True
                 self.win_signal.emit(agent='player' if agent == 1 else 'opponent')
@@ -1198,6 +1224,10 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
         p1 = Player(self, 0, start_position=p1_start_pos, color=[0, 0, 255, 255])
         p2 = Player(self, 1, start_position=p2_start_pos, color=[0, 255, 0, 255])
+
+        if self.game_mode == GameMode.ATTACK_DEBUG:
+            p1.stocks = 99
+            p2.stocks = 99
 
         self.objects['player'] = p1
         self.objects['opponent'] = p2
@@ -1835,17 +1865,17 @@ class TurnaroundState(GroundState):
         if self.turnaround_timer <= 0:
             # If still pressing opposite, that takes priority over held original
             last_dir = self.p.input.horizontal_state.get_last_int()
-            if Facing.get_opposite_int(self.p.facing) == last_dir:
-                self.p.facing = Facing.flip(self.p.facing)
+            old_facing = self.p.facing
+            self.p.facing = Facing.flip(old_facing)
+            if Facing.get_opposite_int(old_facing) == last_dir:
+                
                 return self.p.states['walking']
 
             # If not pressing opposite, but still pressing original, go to new turnaround
-            if Facing.get_int(self.p.facing) == last_dir:
-                self.p.facing = Facing.flip(self.p.facing)
+            if Facing.get_int(old_facing) == last_dir:
                 return self.p.states['turnaround']
         
             # If not pressing either, go to standing and turned around
-            self.p.facing = Facing.flip(self.p.facing)
             return self.p.states['standing']
 
 
@@ -1887,9 +1917,19 @@ class AirTurnaroundState(InAirState):
             return new_state
 
         if self.turnaround_timer <= 0:
-            # After the turnaround period, update the facing direction.
-            self.p.facing = Facing.flip(self.p.facing)
-            in_air = self.p.states['in_air']
+            # If still pressing opposite, that takes priority over held original
+            last_dir = self.p.input.horizontal_state.get_last_int()
+            old_facing = self.p.facing
+            self.p.facing = Facing.flip(old_facing)
+            if Facing.get_opposite_int(old_facing) == last_dir:
+                in_air = self.p.states['in_air']
+
+            # If not pressing opposite, but still pressing original, go to new turnaround
+            elif Facing.get_int(old_facing) == last_dir:
+                in_air = self.p.states['air_turnaround']
+            else:
+                # If not pressing either, go to standing and turned around
+                in_air = self.p.states['in_air']
             in_air.set_jumps(self.jump_timer, self.jumps_left, self.recoveries_left)
             return in_air
 
@@ -2154,10 +2194,11 @@ class CasterPositionChange():
         self.active = active
 
 class DealtPositionTarget():
-    def __init__(self, xOffset=0, yOffset=0, active=False):
+    def __init__(self, xOffset=0, yOffset=0, mult=2.0, active=False):
         self.xOffset = xOffset
         self.yOffset = yOffset
         self.active = active
+        self.mult = mult
 
 class CasterVelocitySet():
     def __init__(self, magnitude=0.0, directionDeg=0.0, active=False):
@@ -2205,6 +2246,7 @@ class CastFrameChangeHolder():
             self.dealt_position_target = DealtPositionTarget(
                 xOffset=dpt_data.get("xOffset", 0),
                 yOffset=dpt_data.get("yOffset", 0),
+                mult=dpt_data.get("mult", 2.0),
                 active=dpt_data.get("active", False)
             )
         else:
@@ -2318,7 +2360,7 @@ class Power():
         self.hit_anyone = False
         self.dealt_position_target_exists = False
         self.current_dealt_position_target = (0.0, 0.0)
-        self.agents_in_move = []
+        self.agents_hit_this_power = []
         self.is_switching_casts = True
         self.past_point_positions = []
 
@@ -2339,6 +2381,7 @@ class Power():
         self.on_hit_velocity_set_active = power_data.get('onHitVelocitySetActive', False)
         self.on_hit_velocity_set_magnitude = power_data.get('onHitVelocitySetMagnitude', 0.0)
         self.on_hit_velocity_set_direction_deg = power_data.get('onHitVelocitySetDirectionDeg', 0.0)
+        self.hit_all_hit_agents = power_data.get('hitAllHitAgents', False)
         self.enable_floor_drag = power_data.get('enableFloorDrag', False)
 
         # Next-power indices (set to -1 if not provided)
@@ -2401,10 +2444,10 @@ class Power():
             hit_vector = (0.0, 0.0, 0.0)
             if cfch is not None and cfch.dealt_position_target is not None and cfch.dealt_position_target.active:
                 self.dealt_position_target_exists = True
-                self.current_dealt_position_target = (cfch.dealt_position_target.xOffset, cfch.dealt_position_target.yOffset)
+                self.current_dealt_position_target = (cfch.dealt_position_target.xOffset, cfch.dealt_position_target.yOffset, cfch.dealt_position_target.mult)
             else:
                 self.dealt_position_target_exists = False
-                self.current_dealt_position_target = (0.0, 0.0)
+                self.current_dealt_position_target = (0.0, 0.0, 0.0)
             if not self.dealt_position_target_exists:
                 # No target: calculate force from angle.
                 # Assume hitAngleDeg may be a wrapped value with a 'Value' attribute; otherwise, use power_data.hitAngleDeg.
@@ -2424,21 +2467,35 @@ class Power():
             is_in_attack_frames = current_cast.frame_idx < (current_cast.startup_frames + current_cast.attack_frames)
             in_attack = (not in_startup) and (is_in_attack_frames or current_cast.must_be_held)
 
+            cast_damage = current_cast.base_damage
+            if self.damage_over_life_of_hitbox and current_cast.attack_frames != 0:
+                damage_to_deal = cast_damage / current_cast.attack_frames
+            else:
+                damage_to_deal = cast_damage
+
+
+            if self.hit_all_hit_agents:
+                for hit_agent in move_manager.all_hit_agents:
+                    if not hit_agent.state.vulnerable(): continue
+                    if hit_agent in self.agents_hit_this_power: continue
+
+                    self.agents_hit_this_power.append(hit_agent)
+                    force_magnitude = (current_cast.fixed_force +
+                                        current_cast.variable_force * hit_agent.damage * 0.05)
+                    hit_agent.apply_damage(damage_to_deal, self.stun_time,
+                                                (hit_vector[0] * force_magnitude, hit_vector[1] * force_magnitude))
+                    hit_agent.set_gravity_disabled(self.disable_hit_gravity)
+
             #print(f"power_id {self.power_id}, cast_idx {self.cast_idx}, idx {current_cast.frame_idx}, in_startup {in_startup}, in_attack {in_attack}")
+            self.p.do_cast_frame_changes_with_changes(cfch, self.enable_floor_drag, move_manager)
             if in_startup:
-                self.p.do_cast_frame_changes_with_changes(cfch, self.enable_floor_drag, move_manager)
                 self.p.set_hitboxes_to_draw()
             elif in_attack:
-                self.p.do_cast_frame_changes_with_changes(cfch, self.enable_floor_drag, move_manager)
                 self.p.set_hitboxes_to_draw(current_cast.hitboxes,
                                                   current_cast.collision_check_points,
                                                   move_manager.move_facing_direction)
 
-                cast_damage = current_cast.base_damage
-                if self.damage_over_life_of_hitbox:
-                    damage_to_deal = cast_damage / current_cast.attack_frames
-                else:
-                    damage_to_deal = cast_damage
+                
 
                 # Check collision.
                 collided = False
@@ -2512,17 +2569,19 @@ class Power():
                                                     (hit_vector[0] * (force_magnitude / current_cast.cast_data.attackFrames),
                                                     hit_vector[1] * (force_magnitude / current_cast.cast_data.attackFrames)))
                             hit_agents.append(hit_agent)
-                        if hit_agent not in self.agents_in_move:
+                        if hit_agent not in self.agents_hit_this_power:
                             if move_manager.hit_agent is None:
                                 move_manager.hit_agent = hit_agent
                             if not self.damage_over_life_of_hitbox:
                                 hit_agent.apply_damage(damage_to_deal, self.stun_time,
                                                     (hit_vector[0] * force_magnitude, hit_vector[1] * force_magnitude))
                             hit_agent.set_gravity_disabled(self.disable_hit_gravity)
-                            self.agents_in_move.append(hit_agent)
+                            self.agents_hit_this_power.append(hit_agent)
                         if hit_agent not in move_manager.all_hit_agents:
                             hit_agent.just_got_hit = True
                             move_manager.all_hit_agents.append(hit_agent)
+
+                
                 if hitbox_hit and self.transition_on_instant_hit:
                     if self.on_hit_next_power_index != -1:
                         hit_power = move_manager.move_data['powers'][self.on_hit_next_power_index]
@@ -2740,7 +2799,7 @@ class AnimationSprite2D(GameObject):
             category_path = os.path.join(animation_folder, category)
             if os.path.isdir(category_path):
                 frames = []
-                for file in sorted(os.listdir(category_path)):
+                for file in tqdm(sorted(os.listdir(category_path))):
                     file_name = os.path.splitext(file)[0]
                     self.animations[file_name] = self.load_animation(os.path.join(category_path, file))
             else:
@@ -2998,7 +3057,7 @@ class Player(GameObject):
         self.smoothTimeX = 0.33 * self.env.fps
         self.air_dodge_cooldown = 82
         self.invincible_time = self.env.fps * 3
-        self.jump_cooldown = self.env.fps * 0.5
+        self.jump_cooldown = self.env.fps * 0.2
         self.dash_time = self.env.fps * 0.3
         self.dash_cooldown = 8
 
@@ -3219,19 +3278,20 @@ class Player(GameObject):
         # (The original code has a commented-out block; here we check if the current power has a target.)
         if hasattr(self.state, 'move_manager') and self.state.move_manager.current_power.dealt_position_target_exists:
             mm = self.state.move_manager
-
+            print('dealt pos target')
             target_pos = Capsule.get_hitbox_offset(mm.current_power.current_dealt_position_target[0],
                                                                mm.current_power.current_dealt_position_target[1])
             target_pos = (target_pos[0] * int(mm.move_facing_direction), target_pos[1])
+            mult = mm.current_power.current_dealt_position_target[2]
             # Assume self.position is available as self.position.
             current_pos = self.body.position  # (x, y, z)
             if mm.current_power.power_data.get("targetAllHitAgents", False):
                 for agent in mm.all_hit_agents:
                     # Compute a new velocity vector.
-                    vel = tuple(0.5 * ((current_pos[i] + target_pos[i] - agent.body.position[i])) for i in range(2))
+                    vel = tuple(mult * ((current_pos[i] + target_pos[i] - agent.body.position[i])) for i in range(2))
                     agent.set_position_target_vel(vel)
             elif mm.hit_agent is not None:
-                vel = tuple(0.5 * ((current_pos[i] + target_pos[i] - mm.hit_agent.body.position[i])) for i in range(2))
+                vel = tuple(mult * ((current_pos[i] + target_pos[i] - mm.hit_agent.body.position[i])) for i in range(2))
                 mm.hit_agent.set_position_target_vel(vel)
 
         # Process caster velocity set.
@@ -3660,10 +3720,9 @@ class WeaponSpawner:
 
     def spawn_weapon(self, current_frame):#martin
         self.world_pos = [random.randint(-5,5),1.75]
-        if random.randint(0, 1) == 0:
-            name = "Spear"
-        else:
-            name = "Hammer"
+        
+        name = 'Spear' if random.randint(0, 1) == 0 else 'Hammer'
+        name = 'Hammer'
         #print(name)
         self.active_weapon = self.pool.get_weapon(self.env, name)
         self.active_weapon.activate(self.camera, self.world_pos,current_frame)

@@ -15,10 +15,11 @@ opponent = ConstantAgent()
 num_matches = 1 #int(input('Number of matches: '))
 #opponent=BasedAgent()
 match_time = 500
+# 270
 # Run a single real-time match
 run_real_time_match(
     agent_1=my_agent,
     agent_2=opponent,
-    max_timesteps=30 * 270,  # Match time in frames (adjust as needed)
+    max_timesteps=30 * 99999,  # Match time in frames (adjust as needed)
     resolution=CameraResolution.LOW,
 )
