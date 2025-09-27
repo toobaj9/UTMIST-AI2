@@ -15,10 +15,10 @@ apt-get update && apt-get install -y \
     unzip \
     python3 \
     python3-apt\
+    python3.10-dev\
     python3-pip \
     gcc \
     g++ \
-    python3-dev \
     libapt-pkg-dev \
     build-essential
 
