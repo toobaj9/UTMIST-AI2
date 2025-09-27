@@ -11,6 +11,8 @@ remove_path() {
 # ----------------------------
 # Install system packages
 # ----------------------------
+apt update && apt install python3-apt
+
 apt-get update && apt-get install -y \
     unzip \
     python3 \
