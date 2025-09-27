@@ -11,12 +11,11 @@ remove_path() {
 # ----------------------------
 # Install system packages
 # ----------------------------
-apt update && apt install python3-apt
+apt update && apt install -y python3-apt
 
 apt-get update && apt-get install -y \
     unzip \
     python3 \
-    python3-apt\
     python3.10-dev\
     python3-pip \
     gcc \
