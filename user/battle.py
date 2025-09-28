@@ -3,10 +3,10 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser(description="Run RL Tournament battle.")
-    parser.add_argument("--branch1", required=True, help="First branch name")
-    parser.add_argument("--branch2", required=True, help="Second branch name")
+    parser.add_argument("--agent1", required=True, help="First agent path name")
+    parser.add_argument("--agent2", required=True, help="Second agent path name")
     args = parser.parse_args()
-    print(f"Success! Branches: {args.branch1} vs {args.branch2}")
+    print(f"Success! Branches: {args.agent1} vs {args.agent2}")
     # Pulls models from some centralized DB
     # Load their models and get their agent code 
     # Run match with the agent class instances

@@ -1,7 +1,7 @@
 # ### Imports
 
 # In[ ]:
-from constants import PLAYER_CAT, GROUND_CAT, WEAPON_CAT, ALL_CATS  
+from environment.constants import PLAYER_CAT, GROUND_CAT, WEAPON_CAT, ALL_CATS  
 import warnings
 from typing import TYPE_CHECKING, Any, Generic, \
  SupportsFloat, TypeVar, Type, Optional, List, Dict, Callable
@@ -520,7 +520,7 @@ class RenderMode(Enum):
     PYGAME_WINDOW = 2
 
 class Camera():
-    background_image = pygame.image.load('assets/map/martin.png')
+    background_image = pygame.image.load('environment/assets/map/martin.png')
 
     scale_factor = 0.72
     new_width = int(background_image.get_width() * scale_factor)
@@ -992,29 +992,29 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
         
 
-        for file in sorted(os.listdir('unarmed_attacks')):
+        for file in sorted(os.listdir('environment/unarmed_attacks')):
             name = file.split('.')[0]
    
             name = name.split(" ")[1]
 
             if name not in self.keys.keys(): continue
-            with open(os.path.join('unarmed_attacks', file)) as f:
+            with open(os.path.join('environment/unarmed_attacks', file)) as f:
                 move_data = json.load(f)
 
             self.attacks[self.keys[name]] = move_data 
 
-        for file in sorted(os.listdir('spear_attacks')):
+        for file in sorted(os.listdir('environment/spear_attacks')):
             name = file.split('.')[0].split(" ")[1]
             if name not in self.keys.keys(): continue
-            with open(os.path.join('spear_attacks', file)) as f:
+            with open(os.path.join('environment/spear_attacks', file)) as f:
                 move_data = json.load(f)
 
             self.spear_attacks[self.keys[name]] = move_data 
 
-        for file in sorted(os.listdir('hammer_attacks')):
+        for file in sorted(os.listdir('environment/hammer_attacks')):
             name = file.split('.')[0].split(" ")[1]
             if name not in self.keys.keys(): continue
-            with open(os.path.join('hammer_attacks', file)) as f:
+            with open(os.path.join('environment/hammer_attacks', file)) as f:
                 move_data = json.load(f)
 
             self.hammer_attacks[self.keys[name]] = move_data 
@@ -1258,8 +1258,8 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         platform1.waypoint1 = (1, 0.0)
         platform1.waypoint2 = (-1, 2.0)
 
-        # stage2 = Stage(self.space, 2, 0, -1, 2, 1, (200, 100, 100, 255))
-        # self.objects['stage2'] = stage2
+        # platform2 = Stage(self.space, 2, 0, -1, 2, 1, (200, 100, 100, 255))
+        # self.objects['platform2'] = platform2
         # stage2.waypoint1 = (-4, -1)
         # platform2.waypoint2 = (4, -1)
 
@@ -1392,8 +1392,8 @@ class Ground(GameObject):
         if self.loaded:
             return
         self.loaded = True
-        self.bg_img = pygame.image.load('assets/map/bg.jpg')
-        self.stage_img = pygame.image.load('assets/map/stage.png')
+        self.bg_img = pygame.image.load('environment/assets/map/bg.jpg')
+        self.stage_img = pygame.image.load('environment/assets/map/stage.png')
         print("Ground is rendered")
 
     def render(self, canvas, camera) -> None:
@@ -1447,8 +1447,8 @@ class Stage(GameObject):
     def load_assets(self):
         if self.loaded: return
         self.loaded = True
-        self.bg_img = pygame.image.load('assets/map/bg.jpg')
-        self.platform_img = pygame.image.load('assets/map/platform.png')
+        self.bg_img = pygame.image.load('environment/assets/map/bg.jpg')
+        self.platform_img = pygame.image.load('environment/assets/map/platform.png')
         print("Stage is rendered")
 
     def render(self, canvas, camera) -> None:
