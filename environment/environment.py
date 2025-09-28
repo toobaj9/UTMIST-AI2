@@ -397,16 +397,16 @@ class UIHandler():
         # Score images
 
         SCALE_FACTOR = 0.11
-        self.agent_1_score = pygame.image.load('assets/ui/player1ui.png')
+        self.agent_1_score = pygame.image.load('environment/assets/ui/player1ui.png')
         self.agent_1_score = pygame.transform.scale(self.agent_1_score, (int(SCALE_FACTOR * self.agent_1_score.get_width()), int(SCALE_FACTOR * self.agent_1_score.get_height())))
-        self.agent_2_score = pygame.image.load('assets/ui/player2ui.png')
+        self.agent_2_score = pygame.image.load('environment/assets/ui/player2ui.png')
         self.agent_2_score = pygame.transform.scale(self.agent_2_score, (int(SCALE_FACTOR * self.agent_2_score.get_width()), int(SCALE_FACTOR * self.agent_2_score.get_height())))
 
         # Life and death images
         SCALE_FACTOR_2 = SCALE_FACTOR * 0.375
-        self.life = pygame.image.load('assets/ui/alicon_alive.png')
+        self.life = pygame.image.load('environment/assets/ui/alicon_alive.png')
         self.life = pygame.transform.scale(self.life, (int(SCALE_FACTOR_2 * self.life.get_width()), int(SCALE_FACTOR_2 * self.life.get_height())))
-        self.death = pygame.image.load('assets/ui/alicon_dead.png')
+        self.death = pygame.image.load('environment/assets/ui/alicon_dead.png')
         self.death = pygame.transform.scale(self.death, (int(SCALE_FACTOR_2 * self.death.get_width()), int(SCALE_FACTOR_2 * self.death.get_height())))
 
         self.score_width, self.score_height = self.agent_1_score.get_size()
@@ -1258,8 +1258,8 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         platform1.waypoint1 = (1, 0.0)
         platform1.waypoint2 = (-1, 2.0)
 
-        # platform2 = Stage(self.space, 2, 0, -1, 2, 1, (200, 100, 100, 255))
-        # self.objects['platform2'] = platform2
+        # stage2 = Stage(self.space, 2, 0, -1, 2, 1, (200, 100, 100, 255))
+        # self.objects['stage2'] = stage2
         # stage2.waypoint1 = (-4, -1)
         # platform2.waypoint2 = (4, -1)
 
@@ -3148,8 +3148,8 @@ class Player(GameObject):
         animation_folder = 'assets'
         if not os.path.exists(animation_folder):
             self.load_assets()
-        self.animation_sprite_2d = AnimationSprite2D(self.env.camera, 1.0, 'assets/player', agent_id)
-        self.attack_sprite = AnimationSprite2D(self.env.camera, 2.0, 'assets/attacks', agent_id)
+        self.animation_sprite_2d = AnimationSprite2D(self.env.camera, 1.0, 'environment/assets/player', agent_id)
+        self.attack_sprite = AnimationSprite2D(self.env.camera, 2.0, 'envirionment/assets/attacks', agent_id)
 
         self.shape.filter = pymunk.ShapeFilter(
             categories=PLAYER_CAT,

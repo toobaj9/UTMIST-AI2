@@ -32,10 +32,9 @@ class SubmittedAgent(Agent):
 
     def _initialize(self) -> None:
         if self.file_path is None:
-            self.model = PPO("MlpPolicy", self.env, verbose=0)
-            del self.env
+            self.model = RecurrentPPO("MlpPolicy", self.env, verbose=0)
         else:
-            self.model = PPO.load(self.file_path)
+            self.model = RecurrentPPO.load(self.file_path)
 
     def _gdown(self) -> str:
         data_path = "rl-model.zip"

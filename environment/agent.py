@@ -602,6 +602,7 @@ def run_match(agent_1: Agent | partial,
               train_mode=False
               ) -> MatchStats:
     # Initialize env
+
     env = WarehouseBrawl(resolution=resolution, train_mode=train_mode)
     observations, infos = env.reset()
     obs_1 = observations[0]
@@ -641,16 +642,15 @@ def run_match(agent_1: Agent | partial,
         agent_2 = agent_2()
 
     # Initialize agents
+    breakpoint()
     if not agent_1.initialized: agent_1.get_env_info(env)
     if not agent_2.initialized: agent_2.get_env_info(env)
     # 596, 336
     platform1 = env.objects["platform1"]
-    platform2 = env.objects["platform2"]
 
     for time in tqdm(range(max_timesteps), total=max_timesteps):
       platform1.physics_process(0.05)
-      platform2.physics_process(0.5)
-
+      breakpoint()
       full_action = {
           0: agent_1.predict(obs_1),
           1: agent_2.predict(obs_2)
@@ -1332,7 +1332,7 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
     pygame.mixer.init()
 
     # Load your soundtrack (must be .wav, .ogg, or supported format)
-    pygame.mixer.music.load("assets/soundtrack.mp3")
+    pygame.mixer.music.load("environment/assets/soundtrack.mp3")
 
     # Play it on loop: -1 = loop forever
     pygame.mixer.music.play(-1)
@@ -1367,7 +1367,7 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
     timestep = 0
    # platform1 = env.objects["platform1"] #mohamed
     #stage2 = env.objects["stage2"]
-    background_image = pygame.image.load('assets/map/bg.jpg').convert() 
+    background_image = pygame.image.load('environment/assets/map/bg.jpg').convert() 
     while running and timestep < max_timesteps:
         # Pygame event to handle real-time user input 
        
