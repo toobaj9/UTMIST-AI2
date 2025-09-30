@@ -26,6 +26,17 @@
               "width": 68,
               "height": 82
             }
+          ],
+          "frameChanges": [
+            {
+              "frame": 10,
+              "casterVelocityDampXY": {
+                "activeX": true,
+                "dampX": 0.5,
+                "activeY": false,
+                "dampY": 0.0
+              }
+            }
           ]
         },
         {
@@ -89,6 +100,17 @@
               "width": 80,
               "height": 50
             }
+          ],
+          "frameChanges": [
+            {
+              "frame": 10,
+              "casterVelocityDampXY": {
+                "activeX": true,
+                "dampX": 0.5,
+                "activeY": false,
+                "dampY": 0.0
+              }
+            }
           ]
         },
         {
@@ -135,36 +157,57 @@
           "fixedForce": 1,
           "frameChanges": [
             {
+              "frame": 0,
+              "dealtPositionTarget": {
+                "active": true,
+                "xOffset": -20,
+                "yOffset": 150,
+                "mult": 3
+              }
+            },
+            {
+              "frame": 2,
+              "dealtPositionTarget": {
+                "active": true,
+                "xOffset": 10,
+                "yOffset": 30,
+                "mult": 3
+              }
+            },
+            {
+              "frame": 5,
+              "dealtPositionTarget": {
+                "active": true,
+                "xOffset": 10,
+                "yOffset": 30,
+                "mult": 3
+              }
+            },
+            {
               "frame": 9,
               "dealtPositionTarget": {
                 "active": true,
-                "xOffset": 200,
+                "xOffset": 100,
                 "yOffset": -120,
                 "mult": 2
               }
             },
             {
+              "frame": 13,
+              "dealtPositionTarget": {
+                "active": true,
+                "xOffset": 200,
+                "yOffset": -220,
+                "mult": 2
+              }
+            },
+            {
               "frame": 14,
-              "dealtPositionTarget": {
-                "active": true,
-                "xOffset": 200,
-                "yOffset": -220,
-                "mult": 200
-              }
-            },
-            {
-              "frame": 15,
-              "dealtPositionTarget": {
-                "active": true,
-                "xOffset": 200,
-                "yOffset": -220,
-                "mult": 200
-              }
-            },
-            {
-              "frame": 17,
-              "dealtPositionTarget": {
-                "active": false
+              "hitPosSetXY": {
+                "activeX": true,
+                "positionX": 100,
+                "activeY": true,
+                "positionY": -200
               }
             }
           ]
