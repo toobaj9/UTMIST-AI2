@@ -2160,15 +2160,16 @@ class MoveManager():
             'THROW': 'l'
         }
 
-    def do_move(self, is_holding_move_type: bool) -> bool:
+    def do_move(self, is_holding_move_type: bool, direction: float) -> bool:
         """
         action: list of ints (e.g. 0 or 1) representing input keys.
         is_holding_move_type: whether the move key is held.
+        direction: float representing horizontal input direction (-1.0 to 1.0).
         """
         self.move_facing_direction = self.p.facing
         key = self.keys[self.move_data['move']['actionKey']]
         holding_move_key = self.p.input.key_status[key].held
-        done, next_power = self.current_power.do_power(holding_move_key, is_holding_move_type, self)
+        done, next_power = self.current_power.do_power(holding_move_key, is_holding_move_type, direction, self)
         if next_power is not None:
             self.current_power = next_power
         self.frame += 1
@@ -2434,6 +2435,7 @@ class Power():
         self.target_all_hit_agents = power_data.get('targetAllHitAgents', False)
         self.transition_on_instant_hit = power_data.get('transitionOnInstantHit', False)
         self.on_hit_velocity_set_active = power_data.get('onHitVelocitySetActive', False)
+        self.allow_left_right_mobility = power_data.get('allowLeftRightMobility', False)
         self.on_hit_velocity_set_magnitude = power_data.get('onHitVelocitySetMagnitude', 0.0)
         self.on_hit_velocity_set_direction_deg = power_data.get('onHitVelocitySetDirectionDeg', 0.0)
         self.hit_all_hit_agents = power_data.get('hitAllHitAgents', False)
@@ -2460,9 +2462,9 @@ class Power():
     def get_force_magnitude(self, current_cast, hit_agent, cast_damage):
         #return current_cast.fixed_force * 1.5 + current_cast.variable_force * hit_agent.damage * 0.05
         X = hit_agent.damage + cast_damage
-        return current_cast.fixed_force + current_cast.variable_force *  (X/100 + (X**2)/20000)
+        return current_cast.fixed_force + current_cast.variable_force *  (X/70 + (X**2)/12000)
 
-    def do_power(self, holding_key, is_holding_move_type, move_manager):
+    def do_power(self, holding_key: bool, is_holding_move_type: bool, direction: float, move_manager: MoveManager):
         """
         Execute one frame of the power.
 
@@ -2547,6 +2549,9 @@ class Power():
                     hit_agent.set_gravity_disabled(self.disable_hit_gravity)
 
             #print(f"power_id {self.power_id}, cast_idx {self.cast_idx}, idx {current_cast.frame_idx}, in_startup {in_startup}, in_attack {in_attack}")
+            if self.allow_left_right_mobility:
+                vx = self.p.move_toward(self.p.body.velocity.x, direction * self.p.move_speed, self.p.in_air_ease)
+                self.p.body.velocity = pymunk.Vec2d(vx, self.p.body.velocity.y)
             self.p.do_cast_frame_changes_with_changes(cfch, self.enable_floor_drag, move_manager)
             if in_startup:
                 self.p.set_hitboxes_to_draw()
@@ -2730,8 +2735,10 @@ class AttackState(PlayerObjectState):
             return new_state
 
         is_holding_move_type = self.move_type == self.p.get_move()
+        direction: float = self.p.input.raw_horizontal
 
-        done = self.move_manager.do_move(is_holding_move_type)
+        done = self.move_manager.do_move(is_holding_move_type, direction)
+        
 
         # current_power = self.move_manager.current_power
 
@@ -3788,17 +3795,17 @@ class WeaponSpawner:
     def handle_pickup(self, player):
         if player.weapon == "Spear":
             player.attack_anims = {
-                MoveType.NLIGHT : ('idle', 'spearnlightfinisher'),
+                MoveType.NLIGHT : ('idle', 'spearnlight'),
                 MoveType.DLIGHT : ('idle', 'speardlight'),
                 MoveType.SLIGHT : ('alpunch', 'spearslight'),
-                MoveType.NSIG   : ('alup', {28: 'spearnsig_held', 29: ('spearnsig_paper', 'spearnsig_rock', 'spearnsig_scissors')}),
-                MoveType.DSIG   : ('idle', {26: 'speardsig_held', 27: 'speardsig_end'}),
-                MoveType.SSIG   : ('alssig', {21: 'spearssig_held', 22: 'spearssig_end'}),
-                MoveType.NAIR   : ('alup', 'spearnlightnofinisher'),
+                MoveType.NSIG   : ('alup', 'spearnsig'),
+                MoveType.DSIG   : ('idle', 'speardsig'),
+                MoveType.SSIG   : ('alssig', 'spearssig'),
+                MoveType.NAIR   : ('alup', 'spearnair'),
                 MoveType.DAIR   : ('alpunch', 'speardair'),
                 MoveType.SAIR   : ('alpunch', 'spearsair'),
                 MoveType.RECOVERY : ('alup', 'spearrecovery'),
-                MoveType.GROUNDPOUND : ('algroundpound', {16: ['speargp', 'speargp_held'], 17: 'speargp_end', 18: 'speargp_end', 19: 'speargp_end'}),
+                MoveType.GROUNDPOUND : ('algroundpound', 'speargroundpound'),
             }
         elif player.weapon == "Hammer":
             player.attack_anims = {

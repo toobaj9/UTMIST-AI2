@@ -12,6 +12,7 @@
       "hitAngleDeg": 80.0,
       "disableCasterGravity": true,
       "onMissNextPowerIndex": 2,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "startupFrames": 11,
@@ -156,6 +157,7 @@
     {
       "powerID": 1600,
       "recovery": 16,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "frameChanges": [
@@ -192,6 +194,7 @@
       "powerID": 1601,
       "fixedRecovery": 2,
       "recovery": 19,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "attackFrames": 1,

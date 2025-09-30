@@ -11,6 +11,7 @@
       "stunTime": 22,
       "onHitNextPowerIndex": 1,
       "onMissNextPowerIndex": 2,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "startupFrames": 13,
@@ -64,6 +65,7 @@
       "fixedRecovery": 0,
       "recovery": 23,
       "cooldown": 11,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "startupFrames": 0,
@@ -78,6 +80,7 @@
       "powerID": 236,
       "fixedRecovery": 1,
       "recovery": 33,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "startupFrames": 0,

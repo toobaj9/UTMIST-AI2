@@ -12,6 +12,7 @@
       "transitionOnInstantHit": true,
       "onHitNextPowerIndex": 1,
       "onMissNextPowerIndex": 3,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "startupFrames": 12,
@@ -61,6 +62,7 @@
       "stunTime": 25,
       "onHitNextPowerIndex": 2,
       "onMissNextPowerIndex": 2,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "attackFrames": 1,
@@ -142,6 +144,7 @@
       "stunTime": 16,
       "hitAngleDeg": -80.0,
       "hitAllHitAgents": true,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "attackFrames": 1,
@@ -163,6 +166,7 @@
       "powerID": 124,
       "fixedRecovery": 7,
       "recovery": 22,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "attackFrames": 1,

@@ -10,6 +10,7 @@
       "cooldown": 14,
       "stunTime": 17,
       "onMissNextPowerIndex": 2,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "startupFrames": 13,
@@ -89,6 +90,7 @@
     {
       "powerID": 770,
       "recovery": 14,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "attackFrames": 1,
@@ -124,6 +126,7 @@
       "powerID": 771,
       "fixedRecovery": 5,
       "recovery": 17,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "attackFrames": 1,

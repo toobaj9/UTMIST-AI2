@@ -11,6 +11,7 @@
       "stunTime": 22,
       "onHitNextPowerIndex": 1,
       "onMissNextPowerIndex": 1,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "startupFrames": 15,
@@ -48,6 +49,7 @@
       "stunTime": 26,
       "hitAngleDeg": 90.0,
       "hitAllHitAgents": true,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "attackFrames": 1,
