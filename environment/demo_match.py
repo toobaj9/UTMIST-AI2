@@ -2,14 +2,14 @@ import skvideo
 import skvideo.io
 from IPython.display import Video
 from environment import RenderMode
-from agent import RecurrentPPOAgent, BasedAgent, run_match, CameraResolution,  gen_reward_manager
+from agent import RecurrentPPOAgent, BasedAgent, run_match, CameraResolution,  gen_reward_manager, SubmittedAgent
 
 def get_model(experiment_dir, name):
     if name == 'based':
         return BasedAgent()
     if name.isdigit():
         name = f'rl_model_{name}_steps'
-    return RecurrentPPOAgent(file_path=f'checkpoints/{experiment_dir}/{name}.zip')
+    return SubmittedAgent(file_path=f'checkpoints/{experiment_dir}/{name}.zip')
 
 reward_manager = gen_reward_manager()
 

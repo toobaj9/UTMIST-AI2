@@ -2,15 +2,18 @@
 # import skvideo.io
 from IPython.display import Video
 from environment import RenderMode
-from agent import SB3Agent, CameraResolution, RecurrentPPOAgent, BasedAgent, UserInputAgent, ConstantAgent, run_match, run_real_time_match, gen_reward_manager
+from agent import SB3Agent, CameraResolution, RecurrentPPOAgent, BasedAgent, UserInputAgent, ConstantAgent, SubmittedAgent, run_match, run_real_time_match, gen_reward_manager
 
 reward_manager = gen_reward_manager()
 
-experiment_dir_1 = "model" #input('Model experiment directory name (e.g. experiment_1): ')
+experiment_dir_1 = "model/" #input('Model experiment directory name (e.g. experiment_1): ')
 model_name_1 = "rl_model_81688323_steps_cracked" #input('Name of first model (e.g. rl_model_100_steps): ')
 
-my_agent = UserInputAgent()
-opponent = ConstantAgent()
+my_agent = RecurrentPPOAgent(None)
+opponent = RecurrentPPOAgent(None)
+
+# my_agent = UserInputAgent()
+# opponent = ConstantAgent()
 
 num_matches = 1 #int(input('Number of matches: '))
 #opponent=BasedAgent()
