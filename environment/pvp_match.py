@@ -6,11 +6,11 @@ from agent import SB3Agent, CameraResolution, RecurrentPPOAgent, BasedAgent, Use
 
 reward_manager = gen_reward_manager()
 
-experiment_dir_1 = "model/" #input('Model experiment directory name (e.g. experiment_1): ')
-model_name_1 = "rl_model_81688323_steps_cracked" #input('Name of first model (e.g. rl_model_100_steps): ')
+experiment_dir_1 = "experiment_6/" #input('Model experiment directory name (e.g. experiment_1): ')
+model_name_1 = "rl_model_54000_steps" #input('Name of first model (e.g. rl_model_100_steps): ')
 
-my_agent = RecurrentPPOAgent(None)
-opponent = RecurrentPPOAgent(None)
+my_agent = UserInputAgent()
+opponent = SubmittedAgent(None)
 
 # my_agent = UserInputAgent()
 # opponent = ConstantAgent()
