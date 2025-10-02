@@ -35,10 +35,11 @@
           "frameChanges": [
             {
               "frame": 13,
-              "casterVelocitySet": {
-                "active": true,
-                "magnitude": 4.0,
-                "directionDeg": 15.0
+              "casterVelocityDampXY": {
+                "activeX": true,
+                "dampX": 0.4,
+                "activeY": false,
+                "dampY": 0.0
               },
               "hurtboxPositionChange": {
                 "active": true,

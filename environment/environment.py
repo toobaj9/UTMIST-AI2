@@ -3812,9 +3812,9 @@ class WeaponSpawner:
                 MoveType.NLIGHT : ('idle', 'hammernlight'),
                 MoveType.DLIGHT : ('idle', 'hammerdlight'),
                 MoveType.SLIGHT : ('alpunch', 'hammerslight'),
-                MoveType.NSIG   : ('alup', {28: 'hammernsig_held', 29: ('hammernsig_paper', 'hammernsig_rock', 'hammernsig_scissors')}),
-                MoveType.DSIG   : ('idle', {26: 'hammerdsig_held', 27: 'hammerdsig_end'}),
-                MoveType.SSIG   : ('alssig', {21: 'hammerssig_held', 22: 'hammerssig_end'}),
+                MoveType.NSIG   : ('alup', 'hammernsig'),
+                MoveType.DSIG   : ('idle', 'hammerdsig'),
+                MoveType.SSIG   : ('alssig', 'hammerdsig'),
                 MoveType.NAIR   : ('alup', 'hammernair'),
                 MoveType.DAIR   : ('alpunch', 'hammerdair'),
                 MoveType.SAIR   : ('alpunch', 'hammersair'),
@@ -3860,7 +3860,7 @@ class WeaponSpawner:
         self.world_pos = [random.randint(-5,5),1.75]
         
         name = 'Spear' if random.randint(0, 1) == 0 else 'Hammer'
-        name = 'Spear'
+        name = 'Hammer'
         #print(name)
         self.active_weapon = self.pool.get_weapon(self.env, name)
         self.active_weapon.activate(self.camera, self.world_pos,current_frame)
