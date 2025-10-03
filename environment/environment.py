@@ -3359,7 +3359,7 @@ class Player(GameObject):
        #  self.draw_image(camera.canvas, self.frames[self.current_frame_index], self.position, self.scale * width, camera, flipped=flipped)
         if not isinstance(self.state, AttackState) and not issubclass(self.state.__class__, AttackState):
             if(self.weapon in ["Hammer","Spear"]):
-                image = pygame.image.load(f"assets/weapons/{self.weapon}.png")
+                image = pygame.image.load(f"environment/assets/weapons/{self.weapon}.png")
                 width = image.get_width()
                 height = image.get_height()
                 dimensions = [width,height]

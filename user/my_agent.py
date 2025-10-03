@@ -32,7 +32,6 @@ class SubmittedAgent(Agent):
 
     def _initialize(self) -> None:
         if self.file_path is None:
-            print('hii')
             self.model = PPO("MlpPolicy", self.env, verbose=0)
             del self.env
         else:
@@ -44,7 +43,7 @@ class SubmittedAgent(Agent):
             # Place a link to your PUBLIC model data here. This is where we will download it from on the tournament server.
             url = "https://drive.google.com/file/d/1JIokiBOrOClh8piclbMlpEEs6mj3H1HJ/view?usp=sharing"
             gdown.download(url, output=data_path, fuzzy=True)
-        return None
+        return data_path
 
     def predict(self, obs):
         action, _ = self.model.predict(obs)

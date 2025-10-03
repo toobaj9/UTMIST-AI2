@@ -642,7 +642,6 @@ def run_match(agent_1: Agent | partial,
         agent_2 = agent_2()
 
     # Initialize agents
-    breakpoint()
     if not agent_1.initialized: agent_1.get_env_info(env)
     if not agent_2.initialized: agent_2.get_env_info(env)
     # 596, 336
@@ -650,7 +649,6 @@ def run_match(agent_1: Agent | partial,
 
     for time in tqdm(range(max_timesteps), total=max_timesteps):
       platform1.physics_process(0.05)
-      breakpoint()
       full_action = {
           0: agent_1.predict(obs_1),
           1: agent_2.predict(obs_2)
