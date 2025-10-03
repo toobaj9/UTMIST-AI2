@@ -11,7 +11,7 @@ on:
 jobs:
   validate:
     name: Validate Agent and Submit
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: python:3.10
 

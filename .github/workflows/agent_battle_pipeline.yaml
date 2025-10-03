@@ -13,7 +13,7 @@ on:
 jobs:
   check-inputs:
     name: Validate Inputs
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Validate usernames
         run: |
@@ -24,7 +24,7 @@ jobs:
 
   battle:
     name: Battle
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: check-inputs
     container:
       image: python:3.10-slim
