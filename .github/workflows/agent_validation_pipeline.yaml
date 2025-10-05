@@ -11,7 +11,7 @@ on:
 jobs:
   validate:
     name: Validate Agent and Submit
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: python:3.10
 
@@ -42,7 +42,7 @@ jobs:
       # === Step 3: Run validation ===
       - name: Run validation
         working-directory: submission
-        run: python validate.py
+        run: pytest user/validate.py
 
       # === Step 4: Upload results as an artifact ===
       - name: Upload Results

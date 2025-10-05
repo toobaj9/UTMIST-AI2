@@ -1,7 +1,7 @@
 # ### Imports
 
 # In[ ]:
-from constants import PLAYER_CAT, GROUND_CAT, WEAPON_CAT, ALL_CATS  
+from environment.constants import PLAYER_CAT, GROUND_CAT, WEAPON_CAT, ALL_CATS  
 import warnings
 from typing import TYPE_CHECKING, Any, Generic, \
  SupportsFloat, TypeVar, Type, Optional, List, Dict, Callable
@@ -397,16 +397,16 @@ class UIHandler():
         # Score images
 
         SCALE_FACTOR = 0.11
-        self.agent_1_score = pygame.image.load('assets/ui/player1ui.png')
+        self.agent_1_score = pygame.image.load('environment/assets/ui/player1ui.png')
         self.agent_1_score = pygame.transform.scale(self.agent_1_score, (int(SCALE_FACTOR * self.agent_1_score.get_width()), int(SCALE_FACTOR * self.agent_1_score.get_height())))
-        self.agent_2_score = pygame.image.load('assets/ui/player2ui.png')
+        self.agent_2_score = pygame.image.load('environment/assets/ui/player2ui.png')
         self.agent_2_score = pygame.transform.scale(self.agent_2_score, (int(SCALE_FACTOR * self.agent_2_score.get_width()), int(SCALE_FACTOR * self.agent_2_score.get_height())))
 
         # Life and death images
         SCALE_FACTOR_2 = SCALE_FACTOR * 0.375
-        self.life = pygame.image.load('assets/ui/alicon_alive.png')
+        self.life = pygame.image.load('environment/assets/ui/alicon_alive.png')
         self.life = pygame.transform.scale(self.life, (int(SCALE_FACTOR_2 * self.life.get_width()), int(SCALE_FACTOR_2 * self.life.get_height())))
-        self.death = pygame.image.load('assets/ui/alicon_dead.png')
+        self.death = pygame.image.load('environment/assets/ui/alicon_dead.png')
         self.death = pygame.transform.scale(self.death, (int(SCALE_FACTOR_2 * self.death.get_width()), int(SCALE_FACTOR_2 * self.death.get_height())))
 
         self.score_width, self.score_height = self.agent_1_score.get_size()
@@ -520,7 +520,7 @@ class RenderMode(Enum):
     PYGAME_WINDOW = 2
 
 class Camera():
-    background_image = pygame.image.load('assets/map/martin.png')
+    background_image = pygame.image.load('environment/assets/map/martin.png')
 
     scale_factor = 0.72
     new_width = int(background_image.get_width() * scale_factor)
@@ -992,29 +992,29 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
         
 
-        for file in sorted(os.listdir('unarmed_attacks')):
+        for file in sorted(os.listdir('environment/unarmed_attacks')):
             name = file.split('.')[0]
    
             name = name.split(" ")[1]
 
             if name not in self.keys.keys(): continue
-            with open(os.path.join('unarmed_attacks', file)) as f:
+            with open(os.path.join('environment/unarmed_attacks', file)) as f:
                 move_data = json.load(f)
 
             self.attacks[self.keys[name]] = move_data 
 
-        for file in sorted(os.listdir('spear_attacks')):
+        for file in sorted(os.listdir('environment/spear_attacks')):
             name = file.split('.')[0].split(" ")[1]
             if name not in self.keys.keys(): continue
-            with open(os.path.join('spear_attacks', file)) as f:
+            with open(os.path.join('environment/spear_attacks', file)) as f:
                 move_data = json.load(f)
 
             self.spear_attacks[self.keys[name]] = move_data 
 
-        for file in sorted(os.listdir('hammer_attacks')):
+        for file in sorted(os.listdir('environment/hammer_attacks')):
             name = file.split('.')[0].split(" ")[1]
             if name not in self.keys.keys(): continue
-            with open(os.path.join('hammer_attacks', file)) as f:
+            with open(os.path.join('environment/hammer_attacks', file)) as f:
                 move_data = json.load(f)
 
             self.hammer_attacks[self.keys[name]] = move_data 
@@ -1392,8 +1392,8 @@ class Ground(GameObject):
         if self.loaded:
             return
         self.loaded = True
-        self.bg_img = pygame.image.load('assets/map/bg.jpg')
-        self.stage_img = pygame.image.load('assets/map/stage.png')
+        self.bg_img = pygame.image.load('environment/assets/map/bg.jpg')
+        self.stage_img = pygame.image.load('environment/assets/map/stage.png')
         print("Ground is rendered")
 
     def render(self, canvas, camera) -> None:
@@ -1447,8 +1447,8 @@ class Stage(GameObject):
     def load_assets(self):
         if self.loaded: return
         self.loaded = True
-        self.bg_img = pygame.image.load('assets/map/bg.jpg')
-        self.platform_img = pygame.image.load('assets/map/platform.png')
+        self.bg_img = pygame.image.load('environment/assets/map/bg.jpg')
+        self.platform_img = pygame.image.load('environment/assets/map/platform.png')
         print("Stage is rendered")
 
     def render(self, canvas, camera) -> None:
@@ -3148,8 +3148,8 @@ class Player(GameObject):
         animation_folder = 'assets'
         if not os.path.exists(animation_folder):
             self.load_assets()
-        self.animation_sprite_2d = AnimationSprite2D(self.env.camera, 1.0, 'assets/player', agent_id)
-        self.attack_sprite = AnimationSprite2D(self.env.camera, 2.0, 'assets/attacks', agent_id)
+        self.animation_sprite_2d = AnimationSprite2D(self.env.camera, 1.0, 'environment/assets/player', agent_id)
+        self.attack_sprite = AnimationSprite2D(self.env.camera, 2.0, 'envirionment/assets/attacks', agent_id)
 
         self.shape.filter = pymunk.ShapeFilter(
             categories=PLAYER_CAT,
@@ -3359,7 +3359,7 @@ class Player(GameObject):
        #  self.draw_image(camera.canvas, self.frames[self.current_frame_index], self.position, self.scale * width, camera, flipped=flipped)
         if not isinstance(self.state, AttackState) and not issubclass(self.state.__class__, AttackState):
             if(self.weapon in ["Hammer","Spear"]):
-                image = pygame.image.load(f"assets/weapons/{self.weapon}.png")
+                image = pygame.image.load(f"environment/assets/weapons/{self.weapon}.png")
                 width = image.get_width()
                 height = image.get_height()
                 dimensions = [width,height]
