@@ -817,7 +817,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
     def __init__(self, mode: RenderMode=RenderMode.RGB_ARRAY, resolution: CameraResolution=CameraResolution.MEDIUM, train_mode: bool = False):
         super(WarehouseBrawl, self).__init__()
 
-        self.game_mode: GameMode = GameMode.ATTACK_DEBUG
+        self.game_mode: GameMode = GameMode.STANDARD
 
         self.stage_width_tiles: float = 29.8
         self.stage_height_tiles: float = 16.8
@@ -3919,7 +3919,7 @@ class WeaponSpawner:
         self.world_pos = [random.randint(-5,5),1.75]
         
         name = 'Spear' if random.randint(0, 1) == 0 else 'Hammer'
-        
+
         #print(name)
         self.active_weapon = self.pool.get_weapon(self.env, name)
         self.active_weapon.activate(self.camera, self.world_pos,current_frame)
