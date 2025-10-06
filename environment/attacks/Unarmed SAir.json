@@ -10,6 +10,7 @@
       "cooldown": 14,
       "stunTime": 17,
       "onMissNextPowerIndex": 2,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "startupFrames": 13,
@@ -28,16 +29,17 @@
               "xOffset": 125,
               "yOffset": 53,
               "width": 56,
-              "height": 48
+              "height": 480
             }
           ],
           "frameChanges": [
             {
               "frame": 13,
-              "casterVelocitySet": {
-                "active": true,
-                "magnitude": 4.0,
-                "directionDeg": 15.0
+              "casterVelocityDampXY": {
+                "activeX": true,
+                "dampX": 0.4,
+                "activeY": false,
+                "dampY": 0.0
               },
               "hurtboxPositionChange": {
                 "active": true,
@@ -89,6 +91,7 @@
     {
       "powerID": 770,
       "recovery": 14,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "attackFrames": 1,
@@ -124,6 +127,7 @@
       "powerID": 771,
       "fixedRecovery": 5,
       "recovery": 17,
+      "allowLeftRightMobility": true,
       "casts": [
         {
           "attackFrames": 1,

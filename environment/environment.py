@@ -11,6 +11,7 @@ from dataclasses import dataclass, field, MISSING
 from collections import defaultdict
 from functools import partial
 from typing import Tuple, Any
+from tqdm import tqdm
 
 from PIL import Image, ImageSequence
 import matplotlib.pyplot as plt
@@ -47,6 +48,12 @@ from IPython.display import Video
 ObsType = TypeVar("ObsType")
 ActType = TypeVar("ActType")
 AgentID = TypeVar("AgentID")
+
+class GameMode(Enum):
+    STANDARD = 0
+    ATTACK_DEBUG = 1
+
+
 
 # Reference PettingZoo AECEnv
 class MalachiteEnv(ABC, Generic[ObsType, ActType, AgentID]):
@@ -777,8 +784,16 @@ class Facing(Enum):
         return "D" if facing == Facing.RIGHT else "A"
     
     @staticmethod
+    def get_int(facing):
+        return 1 if facing == Facing.RIGHT else -1
+    
+    @staticmethod
     def get_opposite_key(facing):
         return "A" if facing == Facing.RIGHT else "D"
+
+    @staticmethod
+    def get_opposite_int(facing):
+        return -1 if facing == Facing.RIGHT else 1
 
     @staticmethod
     def from_direction(direction: float) -> "Facing":
@@ -815,6 +830,8 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
     def __init__(self, mode: RenderMode=RenderMode.RGB_ARRAY, resolution: CameraResolution=CameraResolution.LOW, train_mode: bool = False):
         super(WarehouseBrawl, self).__init__()
 
+        self.game_mode: GameMode = GameMode.STANDARD
+
         self.stage_width_tiles: float = 29.8
         self.stage_height_tiles: float = 16.8
         self.number_of_platforms: int = 2
@@ -829,7 +846,10 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         # Params
         self.fps = 30
         self.dt = 1 / self.fps
-        self.max_timesteps = self.fps * 90
+        if self.game_mode == GameMode.ATTACK_DEBUG:
+            self.max_timesteps = self.fps * 99999
+        else:
+            self.max_timesteps = self.fps * 90
 
         self.agent_1_name = 'Team 1'
         self.agent_2_name = 'Team 2'
@@ -854,6 +874,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
             self.action_spaces[agent_id] = self.action_space
             self.observation_spaces[agent_id] = self.observation_space
 
+        
         self.load_attacks()
 
         self.reset()
@@ -998,24 +1019,33 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
             name = name.split(" ")[1]
 
             if name not in self.keys.keys(): continue
-            with open(os.path.join('environment/unarmed_attacks', file)) as f:
-                move_data = json.load(f)
+            try:
+                with open(os.path.join('unarmed_attacks', file)) as f:
+                    move_data = json.load(f)
+            except Exception as e:
+                print(f"Error loading {file}: {e}")
 
             self.attacks[self.keys[name]] = move_data 
 
         for file in sorted(os.listdir('environment/spear_attacks')):
             name = file.split('.')[0].split(" ")[1]
             if name not in self.keys.keys(): continue
-            with open(os.path.join('environment/spear_attacks', file)) as f:
-                move_data = json.load(f)
+            try:
+                with open(os.path.join('spear_attacks', file)) as f:
+                    move_data = json.load(f)
+            except Exception as e:
+                print(f"Error loading {file}: {e}")
 
             self.spear_attacks[self.keys[name]] = move_data 
 
         for file in sorted(os.listdir('environment/hammer_attacks')):
             name = file.split('.')[0].split(" ")[1]
             if name not in self.keys.keys(): continue
-            with open(os.path.join('environment/hammer_attacks', file)) as f:
-                move_data = json.load(f)
+            try:
+                with open(os.path.join('hammer_attacks', file)) as f:
+                    move_data = json.load(f)
+            except Exception as e:
+                print(f"Error loading {file}: {e}")
 
             self.hammer_attacks[self.keys[name]] = move_data 
 
@@ -1050,6 +1080,10 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         for agent in self.agents:
             player = self.players[agent]
             player.process(action[agent])
+
+            if self.game_mode == GameMode.ATTACK_DEBUG and action[agent][9] > 0.5:
+                print("DEBUG: Reloading attack data")
+                self.load_attacks()
             if player.stocks <= 0:
                 self.terminated = True
                 self.win_signal.emit(agent='player' if agent == 1 else 'opponent')
@@ -1270,6 +1304,10 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
         p1 = Player(self, 0, start_position=p1_start_pos, color=[0, 0, 255, 255])
         p2 = Player(self, 1, start_position=p2_start_pos, color=[0, 255, 0, 255])
+
+        if self.game_mode == GameMode.ATTACK_DEBUG:
+            p1.stocks = 99
+            p2.stocks = 99
 
         self.objects['player'] = p1
         self.objects['opponent'] = p2
@@ -1536,6 +1574,65 @@ class KeyStatus():
     held: bool = False
     just_released: bool = False
 
+class HorizontalState(Enum):
+    NONE = 0
+    LEFT = 1
+    RIGHT = 2
+    LEFT_RIGHT = 3
+    RIGHT_LEFT = 4
+
+    def remove(self, facing: "Facing") -> "HorizontalState":
+        if self == HorizontalState.NONE: return self
+
+        if facing == Facing.LEFT:
+            if self == HorizontalState.LEFT:
+                return HorizontalState.NONE
+            elif self == HorizontalState.LEFT_RIGHT:
+                return HorizontalState.RIGHT
+            elif self == HorizontalState.RIGHT_LEFT:
+                return HorizontalState.RIGHT
+        elif facing == Facing.RIGHT:
+            if self == HorizontalState.RIGHT:
+                return HorizontalState.NONE
+            elif self == HorizontalState.LEFT_RIGHT:
+                return HorizontalState.LEFT
+            elif self == HorizontalState.RIGHT_LEFT:
+                return HorizontalState.LEFT
+        return self
+
+    def stack(self, facing: "Facing") -> "HorizontalState":
+        if self == HorizontalState.NONE:
+            return HorizontalState.LEFT if facing == Facing.LEFT else HorizontalState.RIGHT
+        elif self == HorizontalState.LEFT:
+            if facing == Facing.RIGHT: return HorizontalState.LEFT_RIGHT
+        elif self == HorizontalState.RIGHT:
+            if facing == Facing.LEFT: return HorizontalState.RIGHT_LEFT
+        return self
+    
+    def register_keys(self, left_status: KeyStatus, right_status: KeyStatus) -> "HorizontalState":
+        # Register releases
+        output = self
+        if left_status.just_released:
+            output = output.remove(Facing.LEFT)
+        if right_status.just_released:
+            output = output.remove(Facing.RIGHT)
+        
+        # Register presses
+        if right_status.just_pressed:
+            output = output.stack(Facing.RIGHT)
+        if left_status.just_pressed:
+            output = output.stack(Facing.LEFT)
+
+        return output
+    
+    def get_last_int(self) -> int:
+        if self == HorizontalState.LEFT: return -1
+        if self == HorizontalState.NONE: return 0
+        if self == HorizontalState.RIGHT: return 1
+        if self == HorizontalState.LEFT_RIGHT: return 1
+        if self == HorizontalState.RIGHT_LEFT: return -1
+        return 0
+
 class PlayerInputHandler():
     def __init__(self):
         # Define the key order corresponding to the action vector:
@@ -1549,6 +1646,8 @@ class PlayerInputHandler():
         self.raw_vertical = 0.0   # +1 if W is held, -1 if S is held.
         self.raw_horizontal = 0.0 # +1 if D is held, -1 if A is held.
         self.no_horizontal = True # True if neither A nor D is held.
+        self.horizontal_state = HorizontalState.NONE
+        self.last_direction = 0 # Last direction pressed: -1 for left, +1 for right, 0 for none.
 
     def update(self, action: np.ndarray):
         """
@@ -1580,6 +1679,12 @@ class PlayerInputHandler():
         # Horizontal axis: D (+1) and A (-1)
         self.raw_horizontal = (1.0 if self.key_status["D"].held else 0.0) + (-1.0 if self.key_status["A"].held else 0.0)
         self.no_horizontal = not self.key_status['D'].held and not self.key_status['A'].held
+
+        # Update horizontal_state
+        self.horizontal_state = self.horizontal_state.register_keys(
+            self.key_status['A'], self.key_status['D']
+        )   
+
 
     def __repr__(self):
         # For debugging: provide a summary of the key statuses and axes.
@@ -1694,7 +1799,7 @@ class GroundState(PlayerObjectState):
         near_still = abs(direction) < 1e-2
         if self.p.input.key_status["space"].just_pressed and self.p.is_on_floor():
             self.p.body.velocity = pymunk.Vec2d(self.p.body.velocity.x, -self.p.jump_speed)
-            self.p.facing = Facing.from_direction(direction)
+            self.p.facing = Facing.from_direction(direction) if not near_still else self.p.facing
             in_air = self.p.states['in_air']
             in_air.refresh()
             return in_air
@@ -1715,6 +1820,7 @@ class GroundState(PlayerObjectState):
         move_type = self.p.get_move()
         if move_type != MoveType.NONE:
             attack_state = self.p.states['attack']
+            attack_state.refresh()
             attack_state.give_move(move_type)
             return attack_state
 
@@ -1971,14 +2077,18 @@ class TurnaroundState(GroundState):
 
         if self.turnaround_timer <= 0:
             # If still pressing opposite, that takes priority over held original
-            if self.p.input.key_status[Facing.get_opposite_key(self.p.facing)].held:
-                self.p.facing = Facing.flip(self.p.facing)
+            last_dir = self.p.input.horizontal_state.get_last_int()
+            old_facing = self.p.facing
+            self.p.facing = Facing.flip(old_facing)
+            if Facing.get_opposite_int(old_facing) == last_dir:
+                
                 return self.p.states['walking']
 
             # If not pressing opposite, but still pressing original, go to new turnaround
-            if self.p.input.key_status[Facing.get_key(self.p.facing)].held:
-                self.p.facing = Facing.flip(self.p.facing)
+            if Facing.get_int(old_facing) == last_dir:
                 return self.p.states['turnaround']
+        
+            # If not pressing either, go to standing and turned around
             return self.p.states['standing']
 
 
@@ -2020,9 +2130,19 @@ class AirTurnaroundState(InAirState):
             return new_state
 
         if self.turnaround_timer <= 0:
-            # After the turnaround period, update the facing direction.
-            self.p.facing = Facing.flip(self.p.facing)
-            in_air = self.p.states['in_air']
+            # If still pressing opposite, that takes priority over held original
+            last_dir = self.p.input.horizontal_state.get_last_int()
+            old_facing = self.p.facing
+            self.p.facing = Facing.flip(old_facing)
+            if Facing.get_opposite_int(old_facing) == last_dir:
+                in_air = self.p.states['in_air']
+
+            # If not pressing opposite, but still pressing original, go to new turnaround
+            elif Facing.get_int(old_facing) == last_dir:
+                in_air = self.p.states['air_turnaround']
+            else:
+                # If not pressing either, go to standing and turned around
+                in_air = self.p.states['in_air']
             in_air.set_jumps(self.jump_timer, self.jumps_left, self.recoveries_left)
             return in_air
 
@@ -2242,6 +2362,7 @@ class MoveManager():
         self.all_hit_agents: List = []             # List of LegendAgent instances (to be defined elsewhere)
         initial_power = move_data['powers'][move_data['move']['initialPowerIndex']]
         self.current_power = Power.get_power(initial_power)
+        self.cooldown = self.current_power.cooldown
         self.current_power.p = self.p
         self.frame = 0
         self.move_facing_direction = self.p.facing
@@ -2252,15 +2373,16 @@ class MoveManager():
             'THROW': 'l'
         }
 
-    def do_move(self, is_holding_move_type: bool) -> bool:
+    def do_move(self, is_holding_move_type: bool, direction: float) -> bool:
         """
         action: list of ints (e.g. 0 or 1) representing input keys.
         is_holding_move_type: whether the move key is held.
+        direction: float representing horizontal input direction (-1.0 to 1.0).
         """
         self.move_facing_direction = self.p.facing
         key = self.keys[self.move_data['move']['actionKey']]
         holding_move_key = self.p.input.key_status[key].held
-        done, next_power = self.current_power.do_power(holding_move_key, is_holding_move_type, self)
+        done, next_power = self.current_power.do_power(holding_move_key, is_holding_move_type, direction, self)
         if next_power is not None:
             self.current_power = next_power
         self.frame += 1
@@ -2287,10 +2409,11 @@ class CasterPositionChange():
         self.active = active
 
 class DealtPositionTarget():
-    def __init__(self, xOffset=0, yOffset=0, active=False):
+    def __init__(self, xOffset=0, yOffset=0, mult=2.0, active=False):
         self.xOffset = xOffset
         self.yOffset = yOffset
         self.active = active
+        self.mult = mult
 
 class CasterVelocitySet():
     def __init__(self, magnitude=0.0, directionDeg=0.0, active=False):
@@ -2298,10 +2421,38 @@ class CasterVelocitySet():
         self.directionDeg = directionDeg
         self.active = active
 
+class CasterVelocityAddXY():
+    def __init__(self, magnitudeX=0.0, magnitudeY=0.0, activeX=False, activeY=False):
+        self.magnitudeX = magnitudeX
+        self.magnitudeY = -magnitudeY
+        self.activeX = activeX
+        self.activeY = activeY
+
 class CasterVelocitySetXY():
     def __init__(self, magnitudeX=0.0, magnitudeY=0.0, activeX=False, activeY=False):
         self.magnitudeX = magnitudeX
         self.magnitudeY = -magnitudeY
+        self.activeX = activeX
+        self.activeY = activeY
+
+class HitVelocitySetXY():
+    def __init__(self, magnitudeX=0.0, magnitudeY=0.0, activeX=False, activeY=False):
+        self.magnitudeX = magnitudeX
+        self.magnitudeY = -magnitudeY
+        self.activeX = activeX
+        self.activeY = activeY
+
+class HitVelocityAddXY():
+    def __init__(self, magnitudeX=0.0, magnitudeY=0.0, activeX=False, activeY=False):
+        self.magnitudeX = magnitudeX
+        self.magnitudeY = -magnitudeY
+        self.activeX = activeX
+        self.activeY = activeY
+
+class HitPosSetXY():
+    def __init__(self, positionX=0.0, positionY=0.0, activeX=False, activeY=False):
+        self.positionX = positionX
+        self.positionY = positionY
         self.activeX = activeX
         self.activeY = activeY
 
@@ -2338,6 +2489,7 @@ class CastFrameChangeHolder():
             self.dealt_position_target = DealtPositionTarget(
                 xOffset=dpt_data.get("xOffset", 0),
                 yOffset=dpt_data.get("yOffset", 0),
+                mult=dpt_data.get("mult", 2.0),
                 active=dpt_data.get("active", False)
             )
         else:
@@ -2364,6 +2516,50 @@ class CastFrameChangeHolder():
             )
         else:
             self.caster_velocity_set_xy = None
+        
+        if "casterVelocityAddXY" in data:
+            cvaxy_data = data["casterVelocityAddXY"]
+            self.caster_velocity_add_xy = CasterVelocityAddXY(
+                magnitudeX=cvaxy_data.get("magnitudeX", 0.0),
+                magnitudeY=cvaxy_data.get("magnitudeY", 0.0),
+                activeX=cvaxy_data.get("activeX", False),
+                activeY=cvaxy_data.get("activeY", False)
+            )
+        else:
+            self.caster_velocity_add_xy = None
+        
+        if "hitVelocityAddXY" in data:
+            hvaxy_data = data["hitVelocityAddXY"]
+            self.hit_velocity_add_xy = HitVelocityAddXY(
+                magnitudeX=hvaxy_data.get("magnitudeX", 0.0),
+                magnitudeY=hvaxy_data.get("magnitudeY", 0.0),
+                activeX=hvaxy_data.get("activeX", False),
+                activeY=hvaxy_data.get("activeY", False)
+            )
+        else:
+            self.hit_velocity_add_xy = None
+        
+        if "hitVelocitySetXY" in data:
+            hvsxy_data = data["hitVelocitySetXY"]
+            self.hit_velocity_set_xy = HitVelocitySetXY(
+                magnitudeX=hvsxy_data.get("magnitudeX", 0.0),
+                magnitudeY=hvsxy_data.get("magnitudeY", 0.0),
+                activeX=hvsxy_data.get("activeX", False),
+                activeY=hvsxy_data.get("activeY", False)
+            )
+        else:
+            self.hit_velocity_set_xy = None
+        
+        if "hitPosSetXY" in data:
+            hpsxy_data = data["hitPosSetXY"]
+            self.hit_pos_set_xy = HitPosSetXY(
+                positionX=hpsxy_data.get("positionX", 0.0),
+                positionY=hpsxy_data.get("positionY", 0.0),
+                activeX=hpsxy_data.get("activeX", False),
+                activeY=hpsxy_data.get("activeY", False)
+            )
+        else:
+            self.hit_pos_set_xy = None
 
         if "casterVelocityDampXY" in data:
             cvdxy_data = data["casterVelocityDampXY"]
@@ -2387,6 +2583,24 @@ class CastFrameChangeHolder():
             )
         else:
             self.hurtbox_position_change = HurtboxPositionChange()
+    
+    def printdata(self):
+        print(f"Frame: {self.frame}" )
+        # Print other relevant data here
+        if self.caster_velocity_set_xy:
+            print(f"Caster Velocity Set XY: {self.caster_velocity_set_xy}")
+        if self.caster_velocity_add_xy:
+            print(f"Caster Velocity Add XY: {self.caster_velocity_add_xy}")
+        if self.hit_velocity_add_xy:
+            print(f"Hit Velocity Add XY: {self.hit_velocity_add_xy}")
+        if self.hit_velocity_set_xy:
+            print(f"Hit Velocity Set XY: {self.hit_velocity_set_xy}")
+        if self.hit_pos_set_xy:
+            print(f"Hit Position Set XY: {self.hit_pos_set_xy}")
+        if self.caster_velocity_damp_xy:
+            print(f"Caster Velocity Damp XY: {self.caster_velocity_damp_xy}")
+        if self.hurtbox_position_change:
+            print(f"Hurtbox Position Change: {self.hurtbox_position_change}")
 
     def __repr__(self):
         return f"<CastFrameChangeHolder frame={self.frame}>"
@@ -2451,7 +2665,7 @@ class Power():
         self.hit_anyone = False
         self.dealt_position_target_exists = False
         self.current_dealt_position_target = (0.0, 0.0)
-        self.agents_in_move = []
+        self.agents_hit_this_power = []
         self.is_switching_casts = True
         self.past_point_positions = []
 
@@ -2470,8 +2684,10 @@ class Power():
         self.target_all_hit_agents = power_data.get('targetAllHitAgents', False)
         self.transition_on_instant_hit = power_data.get('transitionOnInstantHit', False)
         self.on_hit_velocity_set_active = power_data.get('onHitVelocitySetActive', False)
+        self.allow_left_right_mobility = power_data.get('allowLeftRightMobility', False)
         self.on_hit_velocity_set_magnitude = power_data.get('onHitVelocitySetMagnitude', 0.0)
         self.on_hit_velocity_set_direction_deg = power_data.get('onHitVelocitySetDirectionDeg', 0.0)
+        self.hit_all_hit_agents = power_data.get('hitAllHitAgents', False)
         self.enable_floor_drag = power_data.get('enableFloorDrag', False)
 
         # Next-power indices (set to -1 if not provided)
@@ -2481,17 +2697,23 @@ class Power():
 
         # last_power is True if both onHitNextPower and onMissNextPower are None.
         self.last_power = (self.on_hit_next_power_index == -1 and self.on_miss_next_power_index == -1)
+        self.in_recovery = False
 
         if casts and len(casts) > 0:
             # Use the last cast to determine recoveryFrames.
-            self.recovery_frames = self.recovery + self.fixed_recovery
+            self.recovery_frames = self.fixed_recovery + math.floor(self.recovery / 1.426)
 
     @staticmethod
     def get_power(power_data) -> "Power":
         casts = [Cast.get_cast(cast) for cast in power_data['casts']]
         return Power(power_data, casts)
 
-    def do_power(self, holding_key, is_holding_move_type, move_manager):
+    def get_force_magnitude(self, current_cast, hit_agent, cast_damage):
+        #return current_cast.fixed_force * 1.5 + current_cast.variable_force * hit_agent.damage * 0.05
+        X = hit_agent.damage + cast_damage
+        return current_cast.fixed_force + current_cast.variable_force *  (X/70 + (X**2)/12000)
+
+    def do_power(self, holding_key: bool, is_holding_move_type: bool, direction: float, move_manager: MoveManager):
         """
         Execute one frame of the power.
 
@@ -2534,10 +2756,10 @@ class Power():
             hit_vector = (0.0, 0.0, 0.0)
             if cfch is not None and cfch.dealt_position_target is not None and cfch.dealt_position_target.active:
                 self.dealt_position_target_exists = True
-                self.current_dealt_position_target = (cfch.dealt_position_target.xOffset, cfch.dealt_position_target.yOffset)
+                self.current_dealt_position_target = (cfch.dealt_position_target.xOffset, cfch.dealt_position_target.yOffset, cfch.dealt_position_target.mult)
             else:
                 self.dealt_position_target_exists = False
-                self.current_dealt_position_target = (0.0, 0.0)
+                self.current_dealt_position_target = (0.0, 0.0, 0.0)
             if not self.dealt_position_target_exists:
                 # No target: calculate force from angle.
                 # Assume hitAngleDeg may be a wrapped value with a 'Value' attribute; otherwise, use power_data.hitAngleDeg.
@@ -2557,21 +2779,37 @@ class Power():
             is_in_attack_frames = current_cast.frame_idx < (current_cast.startup_frames + current_cast.attack_frames)
             in_attack = (not in_startup) and (is_in_attack_frames or current_cast.must_be_held)
 
+            cast_damage = current_cast.base_damage
+            if self.damage_over_life_of_hitbox and current_cast.attack_frames != 0:
+                damage_to_deal = cast_damage / current_cast.attack_frames
+            else:
+                damage_to_deal = cast_damage
+
+
+            if self.hit_all_hit_agents:
+                for hit_agent in move_manager.all_hit_agents:
+                    if not hit_agent.state.vulnerable(): continue
+                    if hit_agent in self.agents_hit_this_power: continue
+
+                    self.agents_hit_this_power.append(hit_agent)
+                    force_magnitude = self.get_force_magnitude(current_cast, hit_agent, cast_damage)
+                    hit_agent.apply_damage(damage_to_deal, self.stun_time,
+                                                (hit_vector[0] * force_magnitude, hit_vector[1] * force_magnitude))
+                    hit_agent.set_gravity_disabled(self.disable_hit_gravity)
+
             #print(f"power_id {self.power_id}, cast_idx {self.cast_idx}, idx {current_cast.frame_idx}, in_startup {in_startup}, in_attack {in_attack}")
+            if self.allow_left_right_mobility:
+                vx = self.p.move_toward(self.p.body.velocity.x, direction * self.p.move_speed, self.p.in_air_ease)
+                self.p.body.velocity = pymunk.Vec2d(vx, self.p.body.velocity.y)
+            self.p.do_cast_frame_changes_with_changes(cfch, self.enable_floor_drag, move_manager)
             if in_startup:
-                self.p.do_cast_frame_changes_with_changes(cfch, self.enable_floor_drag, move_manager)
                 self.p.set_hitboxes_to_draw()
             elif in_attack:
-                self.p.do_cast_frame_changes_with_changes(cfch, self.enable_floor_drag, move_manager)
                 self.p.set_hitboxes_to_draw(current_cast.hitboxes,
                                                   current_cast.collision_check_points,
                                                   move_manager.move_facing_direction)
 
-                cast_damage = current_cast.base_damage
-                if self.damage_over_life_of_hitbox:
-                    damage_to_deal = cast_damage / current_cast.attack_frames
-                else:
-                    damage_to_deal = cast_damage
+                
 
                 # Check collision.
                 collided = False
@@ -2612,7 +2850,7 @@ class Power():
 
                 # Check hitboxes.
                 hitbox_hit = False
-                hit_agents = []
+                hit_agents: list[Player] = []
                 for hitbox in current_cast.hitboxes:
                     hitbox_offset = Capsule.get_hitbox_offset(hitbox['xOffset'], hitbox['yOffset'])
                     hitbox_offset = (hitbox_offset[0] * int(move_manager.move_facing_direction), hitbox_offset[1])
@@ -2620,7 +2858,7 @@ class Power():
                     hitbox_size = Capsule.get_hitbox_size(hitbox['width'], hitbox['height'])
                     capsule1 = CapsuleCollider(center=hitbox_pos, width=hitbox_size[0], height=hitbox_size[1])
                     intersects = self.p.opponent.hurtbox_collider.intersects(capsule1)
-                    hit_agent = self.p.opponent
+                    hit_agent: Player = self.p.opponent
                     #print(self.p.opponent)
                     #print(hitbox_pos, hitbox_size)
                     #print(self.p.opponent.hurtbox_collider.center, self.p.opponent.hurtbox_collider.width, self.p.opponent.hurtbox_collider.height)
@@ -2636,8 +2874,7 @@ class Power():
 
                                 self.p.body.velocity = pymunk.Vec2d(on_hit_vel[0], on_hit_vel[1])
                         self.hit_anyone = True
-                        force_magnitude = (current_cast.fixed_force +
-                                            current_cast.variable_force * hit_agent.damage * 0.05)
+                        force_magnitude = self.get_force_magnitude(current_cast, hit_agent, cast_damage)
                                 # 02622
                         if hit_agent not in hit_agents:
                             if self.damage_over_life_of_hitbox:
@@ -2645,17 +2882,19 @@ class Power():
                                                     (hit_vector[0] * (force_magnitude / current_cast.cast_data.attackFrames),
                                                     hit_vector[1] * (force_magnitude / current_cast.cast_data.attackFrames)))
                             hit_agents.append(hit_agent)
-                        if hit_agent not in self.agents_in_move:
+                        if hit_agent not in self.agents_hit_this_power:
                             if move_manager.hit_agent is None:
                                 move_manager.hit_agent = hit_agent
                             if not self.damage_over_life_of_hitbox:
                                 hit_agent.apply_damage(damage_to_deal, self.stun_time,
                                                     (hit_vector[0] * force_magnitude, hit_vector[1] * force_magnitude))
                             hit_agent.set_gravity_disabled(self.disable_hit_gravity)
-                            self.agents_in_move.append(hit_agent)
+                            self.agents_hit_this_power.append(hit_agent)
                         if hit_agent not in move_manager.all_hit_agents:
                             hit_agent.just_got_hit = True
                             move_manager.all_hit_agents.append(hit_agent)
+
+                
                 if hitbox_hit and self.transition_on_instant_hit:
                     if self.on_hit_next_power_index != -1:
                         hit_power = move_manager.move_data['powers'][self.on_hit_next_power_index]
@@ -2670,7 +2909,8 @@ class Power():
             current_cast.frame_idx += 1
 
             # Recovery handling: if not transitioning and not in startup or attack.
-            if (not transitioning_to_next_power) and (not in_attack) and (not in_startup):
+            self.in_recovery = (not transitioning_to_next_power) and (not in_attack) and (not in_startup)
+            if self.in_recovery:
                 self.p.set_hitboxes_to_draw()
                 if self.cast_idx == len(self.casts) - 1:
                     if self.frames_into_recovery >= self.recovery_frames:
@@ -2710,6 +2950,11 @@ class AttackState(PlayerObjectState):
     def can_control(self):
         return False
 
+    def refresh(self):
+        self.jump_timer = 0
+        self.jumps_left = 2
+        self.recoveries_left = 1
+
     def give_move(self, move_type: "MoveType") -> None:
         self.move_type = move_type
       
@@ -2723,7 +2968,7 @@ class AttackState(PlayerObjectState):
         else:
             move_data = self.p.env.attacks[move_type]
         
-       
+
         self.move_manager = MoveManager(self.p, move_data)
 
     def enter(self) -> None:
@@ -2744,8 +2989,26 @@ class AttackState(PlayerObjectState):
             return new_state
 
         is_holding_move_type = self.move_type == self.p.get_move()
+        direction: float = self.p.input.raw_horizontal
 
-        done = self.move_manager.do_move(is_holding_move_type)
+        done = self.move_manager.do_move(is_holding_move_type, direction)
+        
+
+        # current_power = self.move_manager.current_power
+
+        # if current_power.last_power:
+        #     current_cast = current_power.casts[current_power.cast_idx]
+        #     is_in_attack_frames = current_cast.frame_idx < (current_cast.startup_frames + current_cast.attack_frames)
+        #     # recovery check that
+        #     if not current_power.in_recovery:
+        #         direction = self.p.input.raw_horizontal
+        #         near_still = abs(direction) < 1e-2
+        #         if self.p.input.key_status["space"].just_pressed and self.p.is_on_floor():
+        #             self.p.body.velocity = pymunk.Vec2d(self.p.body.velocity.x, -self.p.jump_speed)
+        #             self.p.facing = Facing.from_direction(direction)
+        #             in_air = self.p.states['in_air']
+        #             in_air.refresh()
+        #             return in_air
 
         if done:
             self.p.set_hitboxes_to_draw()
@@ -2853,6 +3116,12 @@ class AnimationSprite2D(GameObject):
             'unarmedrecovery': [1.0],
             'unarmeddlight': [1.2],
             'hammerslight': [2.3],
+            'hammernlight': [2.3],
+            'hammerdlight': [1.8],
+            'hammersair': [1.8],
+            'hammerdair': [1.8],
+            'hammernair': [2.1],
+            'hammergp': [2.1],
         }
 
         self.color_mapping = {self.albert_palette[key]: self.kai_palette[key] for key in self.albert_palette}
@@ -2873,7 +3142,7 @@ class AnimationSprite2D(GameObject):
             category_path = os.path.join(animation_folder, category)
             if os.path.isdir(category_path):
                 frames = []
-                for file in sorted(os.listdir(category_path)):
+                for file in tqdm(sorted(os.listdir(category_path))):
                     file_name = os.path.splitext(file)[0]
                     self.animations[file_name] = self.load_animation(os.path.join(category_path, file))
             else:
@@ -3131,7 +3400,7 @@ class Player(GameObject):
         self.smoothTimeX = 0.33 * self.env.fps
         self.air_dodge_cooldown = 82
         self.invincible_time = self.env.fps * 3
-        self.jump_cooldown = self.env.fps * 0.5
+        self.jump_cooldown = self.env.fps * 0.2
         self.dash_time = self.env.fps * 0.3
         self.dash_cooldown = 8
         self.on_platform = None
@@ -3280,7 +3549,8 @@ class Player(GameObject):
         self.damage_taken_total += damage_default
         self.damage_taken_this_frame += damage_default
         self.state.stunned(stun_dealt)
-        scale = (1.024 / 320.0) * 18 # 0.165
+        #scale = (1.024 / 320.0) * 18 # 0.165
+        scale = (1.024 / 320.0) * 30
 
         if self.is_on_floor() and velocity_dealt[1] > 0:
             # Bounce
@@ -3331,7 +3601,15 @@ class Player(GameObject):
             self.hurtbox_collider.height / (2 * WarehouseBrawl.BRAWL_TO_UNITS)
         ])
         state_name = type(self.state).__name__
-        Capsule.draw_hurtbox(camera, hurtbox_data, hurtbox_pos, stunned=state_name == 'StunState')
+
+        if state_name == 'StunState':
+            color = (67, 217, 240)  # Blue color for stunned
+        elif state_name == 'DodgeState':
+            color = (180, 180, 180)  # Grey color for dodging
+        else:
+            color = (247, 215, 5)  # Default yellow color
+
+        Capsule.draw_hithurtbox(camera, hurtbox_data, hurtbox_pos, color=color)
 
         
 
@@ -3350,7 +3628,7 @@ class Player(GameObject):
 
         # draw circle
         cc = (227, 138, 14) if self.agent_id == 0 else (18, 131, 201)
-        screen_pos = camera.gtp((int(position[0]), int(position[1])-1))
+        screen_pos = camera.gtp((position[0], position[1]-1))
         pygame.draw.circle(camera.canvas, cc, screen_pos, camera.scale_gtp() * 0.25)
 
 
@@ -3457,21 +3735,22 @@ class Player(GameObject):
         # (The original code has a commented-out block; here we check if the current power has a target.)
         if hasattr(self.state, 'move_manager') and self.state.move_manager.current_power.dealt_position_target_exists:
             mm = self.state.move_manager
-
             target_pos = Capsule.get_hitbox_offset(mm.current_power.current_dealt_position_target[0],
                                                                mm.current_power.current_dealt_position_target[1])
             target_pos = (target_pos[0] * int(mm.move_facing_direction), target_pos[1])
+            mult = mm.current_power.current_dealt_position_target[2]
             # Assume self.position is available as self.position.
             current_pos = self.body.position  # (x, y, z)
             if mm.current_power.power_data.get("targetAllHitAgents", False):
                 for agent in mm.all_hit_agents:
                     # Compute a new velocity vector.
-                    vel = tuple(0.5 * ((current_pos[i] + target_pos[i] - agent.body.position[i])) for i in range(2))
+                    vel = tuple(mult * ((current_pos[i] + target_pos[i] - agent.body.position[i])) for i in range(2))
                     agent.set_position_target_vel(vel)
             elif mm.hit_agent is not None:
-                vel = tuple(0.5 * ((current_pos[i] + target_pos[i] - mm.hit_agent.body.position[i])) for i in range(2))
+                vel = tuple(mult * ((current_pos[i] + target_pos[i] - mm.hit_agent.body.position[i])) for i in range(2))
                 mm.hit_agent.set_position_target_vel(vel)
 
+        #print(changes.printdata())
         # Process caster velocity set.
         cvs = changes.caster_velocity_set
         #print(f"{self.agent_id} {cvs} ding!")
@@ -3481,6 +3760,16 @@ class Player(GameObject):
             vel = (math.cos(angle_rad) * cvs.magnitude, -math.sin(angle_rad) * cvs.magnitude)
             vel = (vel[0] * int(mm.move_facing_direction), vel[1])
             self.body.velocity = pymunk.Vec2d(vel[0], vel[1])
+        
+        # Process caster velocity damp XY.
+        cvdxy = changes.caster_velocity_damp_xy
+        if cvdxy is not None:
+            vx, vy = self.body.velocity
+            if getattr(cvdxy, 'activeX', False):
+                vx *= cvdxy.dampX
+            if getattr(cvdxy, 'activeY', False):
+                vy *= cvdxy.dampY
+            self.body.velocity = pymunk.Vec2d(vx, vy)
 
         # Process caster velocity set XY.
         cvsxy = changes.caster_velocity_set_xy
@@ -3491,16 +3780,60 @@ class Player(GameObject):
             if getattr(cvsxy, 'activeY', False):
                 vy = cvsxy.magnitudeY
             self.body.velocity = pymunk.Vec2d(vx, vy)
-
-        # Process caster velocity damp XY.
-        cvdxy = changes.caster_velocity_damp_xy
-        if cvdxy is not None:
+        
+        # Process caster velocity add XY.
+        cvaxy = changes.caster_velocity_add_xy
+        if cvaxy is not None:
             vx, vy = self.body.velocity
-            if getattr(cvdxy, 'activeX', False):
-                vx *= cvdxy.dampX
-            if getattr(cvdxy, 'activeY', False):
-                vy *= cvdxy.dampY
+            if getattr(cvaxy, 'activeX', False):
+                vx += cvaxy.magnitudeX * int(mm.move_facing_direction)
+            if getattr(cvaxy, 'activeY', False):
+                vy += cvaxy.magnitudeY
             self.body.velocity = pymunk.Vec2d(vx, vy)
+        
+        
+        
+        # Process hit velocity set XY.
+        hvsxy = changes.hit_velocity_set_xy
+        if hvsxy is not None:
+            
+            for agent in mm.all_hit_agents:
+                vx, vy = agent.body.velocity
+                if getattr(hvsxy, 'activeX', False):
+                    vx = hvsxy.magnitudeX * int(mm.move_facing_direction)
+                if getattr(hvsxy, 'activeY', False):
+                    vy = hvsxy.magnitudeY
+                agent.body.velocity = pymunk.Vec2d(vx, vy)
+        
+        # Process hit velocity add XY.
+        hvaxy = changes.hit_velocity_add_xy
+        if hvaxy is not None:
+            for agent in mm.all_hit_agents:
+                vx, vy = agent.body.velocity
+                if getattr(hvaxy, 'activeX', False):
+                    vx += hvaxy.magnitudeX * int(mm.move_facing_direction)
+                if getattr(hvaxy, 'activeY', False):
+                    vy += hvaxy.magnitudeY
+                agent.body.velocity = pymunk.Vec2d(vx, vy)
+
+        # Process hit teleport
+        hpsxy = changes.hit_pos_set_xy
+        if hpsxy is not None:
+            target_pos = Capsule.get_hitbox_offset(hpsxy.positionX, hpsxy.positionY)
+            target_pos = (target_pos[0] * int(mm.move_facing_direction), target_pos[1])
+
+            # Assume self.position is available as self.position.
+            current_pos = self.body.position  # (x, y, z)
+            for agent in mm.all_hit_agents:
+                px, py = agent.body.position
+                if getattr(hpsxy, 'activeX', False):
+                    px = current_pos[0] + target_pos[0]
+                if getattr(hpsxy, 'activeY', False):
+                    py = current_pos[1] + target_pos[1]
+                agent.body.position = pymunk.Vec2d(px, py)
+
+
+        
 
     def get_move(self) -> MoveType:
         # Assuming that 'p' is a Player instance and that p.input is an instance of PlayerInputHandler.
@@ -3909,36 +4242,41 @@ class WeaponSpawner:
             self.vfx.show_pickup()
         self.last_spawn_frame = current_frame
         self.despawn_weapon()
+        self.handle_pickup(player)
+
+        return True
+
+    def handle_pickup(self, player):
         if player.weapon == "Spear":
             player.attack_anims = {
-                MoveType.NLIGHT : ('idle', 'spearnlightfinisher'),
+                MoveType.NLIGHT : ('idle', 'spearnlight'),
                 MoveType.DLIGHT : ('idle', 'speardlight'),
                 MoveType.SLIGHT : ('alpunch', 'spearslight'),
-                MoveType.NSIG   : ('alup', {28: 'spearnsig_held', 29: ('spearnsig_paper', 'spearnsig_rock', 'spearnsig_scissors')}),
-                MoveType.DSIG   : ('idle', {26: 'speardsig_held', 27: 'speardsig_end'}),
-                MoveType.SSIG   : ('alssig', {21: 'spearssig_held', 22: 'spearssig_end'}),
-                MoveType.NAIR   : ('alup', 'spearnlightnofinisher'),
+                MoveType.NSIG   : ('alup', 'spearnsig'),
+                MoveType.DSIG   : ('idle', 'speardsig'),
+                MoveType.SSIG   : ('alssig', 'spearssig'),
+                MoveType.NAIR   : ('alup', 'spearnair'),
                 MoveType.DAIR   : ('alpunch', 'speardair'),
                 MoveType.SAIR   : ('alpunch', 'spearsair'),
                 MoveType.RECOVERY : ('alup', 'spearrecovery'),
-                MoveType.GROUNDPOUND : ('algroundpound', {16: ['speargp', 'speargp_held'], 17: 'speargp_end', 18: 'speargp_end', 19: 'speargp_end'}),
+                MoveType.GROUNDPOUND : ('algroundpound', 'speargroundpound'),
             }
         elif player.weapon == "Hammer":
             player.attack_anims = {
-                MoveType.NLIGHT : ('idle', 'hammernlightfinisher'),
+                MoveType.NLIGHT : ('idle', 'hammernlight'),
                 MoveType.DLIGHT : ('idle', 'hammerdlight'),
                 MoveType.SLIGHT : ('alpunch', 'hammerslight'),
-                MoveType.NSIG   : ('alup', {28: 'hammernsig_held', 29: ('hammernsig_paper', 'hammernsig_rock', 'hammernsig_scissors')}),
-                MoveType.DSIG   : ('idle', {26: 'hammerdsig_held', 27: 'hammerdsig_end'}),
-                MoveType.SSIG   : ('alssig', {21: 'hammerssig_held', 22: 'hammerssig_end'}),
-                MoveType.NAIR   : ('alup', 'hammernlightnofinisher'),
+                MoveType.NSIG   : ('alup', 'hammernsig'),
+                MoveType.DSIG   : ('idle', 'hammerdsig'),
+                MoveType.SSIG   : ('alssig', 'hammerdsig'),
+                MoveType.NAIR   : ('alup', 'hammernair'),
                 MoveType.DAIR   : ('alpunch', 'hammerdair'),
                 MoveType.SAIR   : ('alpunch', 'hammersair'),
-                MoveType.RECOVERY : ('alup', 'hammerrecovery'),
-                MoveType.GROUNDPOUND : ('algroundpound', {16: ['hammergp', 'hammergp_held'], 17: 'hammergp_end', 18: 'hammergp_end', 19: 'hammergp_end'}),
+                MoveType.RECOVERY : ('alup', 'hammernair'),
+                MoveType.GROUNDPOUND : ('algroundpound', 'hammergp'),
             }
         else:
-            self.attack_anims = {
+            player.attack_anims = {
                 MoveType.NLIGHT : ('idle', 'unarmednlightfinisher'),
                 MoveType.DLIGHT : ('idle', 'unarmeddlight'),
                 MoveType.SLIGHT : ('alpunch', 'unarmedslight'),
@@ -3951,8 +4289,6 @@ class WeaponSpawner:
                 MoveType.RECOVERY : ('alup', 'unarmedrecovery'),
                 MoveType.GROUNDPOUND : ('algroundpound', {16: ['unarmedgp', 'unarmedgp_held'], 17: 'unarmedgp_end', 18: 'unarmedgp_end', 19: 'unarmedgp_end'}),
             }
-
-        return True
         
 
 
@@ -3974,21 +4310,13 @@ class WeaponSpawner:
                 self.spawn_weapon(current_frame)
                 self.flag = False
 
-    def spawn_weapon(self, current_frame):
-        y_pos = self.world_pos[1]
-        if(y_pos == 0+0.7):
-            x_pos = random.uniform(2.6,6.5)#2
-        else:
-            x_pos = -random.uniform(2.6,6.5)
+    def spawn_weapon(self, current_frame):#martin
+        self.world_pos = [random.randint(-5,5),1.75]
+        
+        name = 'Spear' if random.randint(0, 1) == 0 else 'Hammer'
 
-        self.world_pos = [x_pos,y_pos]
-
-        if random.randint(0, 1) == 0:
-            name = "Spear"
-        else:
-            name = "Hammer"
-      
-        self.active_weapon = self.pool.get_weapon(self.env, name, False)
+        #print(name)
+        self.active_weapon = self.pool.get_weapon(self.env, name)
         self.active_weapon.activate(self.camera, self.world_pos,current_frame)
 
         self.last_spawn_frame = current_frame
@@ -4186,48 +4514,9 @@ class DroppedWeaponSpawner(WeaponSpawner):
         if self.vfx:
             self.vfx.show_pickup()
         self.despawn_weapon()
-        if player.weapon == "Spear":
-            player.attack_anims = {
-                MoveType.NLIGHT : ('idle', 'spearnlightfinisher'),
-                MoveType.DLIGHT : ('idle', 'speardlight'),
-                MoveType.SLIGHT : ('alpunch', 'spearslight'),
-                MoveType.NSIG   : ('alup', {28: 'spearnsig_held', 29: ('spearnsig_paper', 'spearnsig_rock', 'spearnsig_scissors')}),
-                MoveType.DSIG   : ('idle', {26: 'speardsig_held', 27: 'speardsig_end'}),
-                MoveType.SSIG   : ('alssig', {21: 'spearssig_held', 22: 'spearssig_end'}),
-                MoveType.NAIR   : ('alup', 'spearnlightnofinisher'),
-                MoveType.DAIR   : ('alpunch', 'speardair'),
-                MoveType.SAIR   : ('alpunch', 'spearsair'),
-                MoveType.RECOVERY : ('alup', 'spearrecovery'),
-                MoveType.GROUNDPOUND : ('algroundpound', {16: ['speargp', 'speargp_held'], 17: 'speargp_end', 18: 'speargp_end', 19: 'speargp_end'}),
-            }
-        elif player.weapon == "Hammer":
-            player.attack_anims = {
-                MoveType.NLIGHT : ('idle', 'hammernlightfinisher'),
-                MoveType.DLIGHT : ('idle', 'hammerdlight'),
-                MoveType.SLIGHT : ('alpunch', 'hammerslight'),
-                MoveType.NSIG   : ('alup', {28: 'hammernsig_held', 29: ('hammernsig_paper', 'hammernsig_rock', 'hammernsig_scissors')}),
-                MoveType.DSIG   : ('idle', {26: 'hammerdsig_held', 27: 'hammerdsig_end'}),
-                MoveType.SSIG   : ('alssig', {21: 'hammerssig_held', 22: 'hammerssig_end'}),
-                MoveType.NAIR   : ('alup', 'hammernlightnofinisher'),
-                MoveType.DAIR   : ('alpunch', 'hammerdair'),
-                MoveType.SAIR   : ('alpunch', 'hammersair'),
-                MoveType.RECOVERY : ('alup', 'hammerrecovery'),
-                MoveType.GROUNDPOUND : ('algroundpound', {16: ['hammergp', 'hammergp_held'], 17: 'hammergp_end', 18: 'hammergp_end', 19: 'hammergp_end'}),
-            }
-        else:
-            player.attack_anims = {
-                MoveType.NLIGHT : ('idle', 'unarmednlightfinisher'),
-                MoveType.DLIGHT : ('idle', 'unarmeddlight'),
-                MoveType.SLIGHT : ('alpunch', 'unarmedslight'),
-                MoveType.NSIG   : ('alup', {28: 'unarmednsig_held', 29: ('unarmednsig_paper', 'unarmednsig_rock', 'unarmednsig_scissors')}),
-                MoveType.DSIG   : ('idle', {26: 'unarmeddsig_held', 27: 'unarmeddsig_end'}),
-                MoveType.SSIG   : ('alssig', {21: 'unarmedssig_held', 22: 'unarmedssig_end'}),
-                MoveType.NAIR   : ('alup', 'unarmednlightnofinisher'),
-                MoveType.DAIR   : ('alpunch', 'unarmeddair'),
-                MoveType.SAIR   : ('alpunch', 'unarmedsair'),
-                MoveType.RECOVERY : ('alup', 'unarmedrecovery'),
-                MoveType.GROUNDPOUND : ('algroundpound', {16: ['unarmedgp', 'unarmedgp_held'], 17: 'unarmedgp_end', 18: 'unarmedgp_end', 19: 'unarmedgp_end'}),
-            }
+        
+        self.handle_pickup(player)
+
         return True
         
 
