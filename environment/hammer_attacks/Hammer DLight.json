@@ -11,6 +11,7 @@
       "stunTime": 27,
       "onMissNextPowerIndex": 2,
       "onHitNextPowerIndex": 1,
+      "hitAllHitAgents": true,
       "hitAngleDeg": 90.0,
       "casts": [
         {
@@ -47,6 +48,12 @@
                 "dampX": 0.8,
                 "activeY": false,
                 "dampY": 0.0
+              },
+              "hitVelocitySetXY": {
+                "activeX": false,
+                "magnitudeX": 0.0,
+                "activeY": true,
+                "magnitudeY": 30.0
               }
             },
             {

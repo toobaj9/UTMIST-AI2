@@ -42,6 +42,21 @@
                 "dampX": 0.5,
                 "activeY": false,
                 "dampY": 0.0
+              },
+              "casterVelocitySetXY": {
+                "activeX": false,
+                "magnitudeX": 0.0,
+                "activeY": true,
+                "magnitudeY": 8.0
+              }
+            },
+            {
+              "frame": 14,
+              "casterVelocityDampXY": {
+                "activeX": false,
+                "magnitudeX": 0.0,
+                "activeY": true,
+                "magnitudeY": 0.5
               }
             }
           ]

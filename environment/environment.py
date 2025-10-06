@@ -1595,7 +1595,7 @@ class GroundState(PlayerObjectState):
         near_still = abs(direction) < 1e-2
         if self.p.input.key_status["space"].just_pressed and self.p.is_on_floor():
             self.p.body.velocity = pymunk.Vec2d(self.p.body.velocity.x, -self.p.jump_speed)
-            self.p.facing = Facing.from_direction(direction)
+            self.p.facing = Facing.from_direction(direction) if not near_still else self.p.facing
             in_air = self.p.states['in_air']
             in_air.refresh()
             return in_air
@@ -1616,6 +1616,7 @@ class GroundState(PlayerObjectState):
         move_type = self.p.get_move()
         if move_type != MoveType.NONE:
             attack_state = self.p.states['attack']
+            attack_state.refresh()
             attack_state.give_move(move_type)
             return attack_state
 
@@ -2229,6 +2230,13 @@ class HitVelocitySetXY():
         self.activeX = activeX
         self.activeY = activeY
 
+class HitVelocityAddXY():
+    def __init__(self, magnitudeX=0.0, magnitudeY=0.0, activeX=False, activeY=False):
+        self.magnitudeX = magnitudeX
+        self.magnitudeY = -magnitudeY
+        self.activeX = activeX
+        self.activeY = activeY
+
 class HitPosSetXY():
     def __init__(self, positionX=0.0, positionY=0.0, activeX=False, activeY=False):
         self.positionX = positionX
@@ -2308,6 +2316,17 @@ class CastFrameChangeHolder():
         else:
             self.caster_velocity_add_xy = None
         
+        if "hitVelocityAddXY" in data:
+            hvaxy_data = data["hitVelocityAddXY"]
+            self.hit_velocity_add_xy = HitVelocityAddXY(
+                magnitudeX=hvaxy_data.get("magnitudeX", 0.0),
+                magnitudeY=hvaxy_data.get("magnitudeY", 0.0),
+                activeX=hvaxy_data.get("activeX", False),
+                activeY=hvaxy_data.get("activeY", False)
+            )
+        else:
+            self.hit_velocity_add_xy = None
+        
         if "hitVelocitySetXY" in data:
             hvsxy_data = data["hitVelocitySetXY"]
             self.hit_velocity_set_xy = HitVelocitySetXY(
@@ -2352,6 +2371,24 @@ class CastFrameChangeHolder():
             )
         else:
             self.hurtbox_position_change = HurtboxPositionChange()
+    
+    def printdata(self):
+        print(f"Frame: {self.frame}" )
+        # Print other relevant data here
+        if self.caster_velocity_set_xy:
+            print(f"Caster Velocity Set XY: {self.caster_velocity_set_xy}")
+        if self.caster_velocity_add_xy:
+            print(f"Caster Velocity Add XY: {self.caster_velocity_add_xy}")
+        if self.hit_velocity_add_xy:
+            print(f"Hit Velocity Add XY: {self.hit_velocity_add_xy}")
+        if self.hit_velocity_set_xy:
+            print(f"Hit Velocity Set XY: {self.hit_velocity_set_xy}")
+        if self.hit_pos_set_xy:
+            print(f"Hit Position Set XY: {self.hit_pos_set_xy}")
+        if self.caster_velocity_damp_xy:
+            print(f"Caster Velocity Damp XY: {self.caster_velocity_damp_xy}")
+        if self.hurtbox_position_change:
+            print(f"Hurtbox Position Change: {self.hurtbox_position_change}")
 
     def __repr__(self):
         return f"<CastFrameChangeHolder frame={self.frame}>"
@@ -2700,6 +2737,11 @@ class AttackState(PlayerObjectState):
 
     def can_control(self):
         return False
+
+    def refresh(self):
+        self.jump_timer = 0
+        self.jumps_left = 2
+        self.recoveries_left = 1
 
     def give_move(self, move_type: "MoveType") -> None:
         self.move_type = move_type
@@ -3391,6 +3433,7 @@ class Player(GameObject):
                 vel = tuple(mult * ((current_pos[i] + target_pos[i] - mm.hit_agent.body.position[i])) for i in range(2))
                 mm.hit_agent.set_position_target_vel(vel)
 
+        #print(changes.printdata())
         # Process caster velocity set.
         cvs = changes.caster_velocity_set
         #print(f"{self.agent_id} {cvs} ding!")
@@ -3400,6 +3443,16 @@ class Player(GameObject):
             vel = (math.cos(angle_rad) * cvs.magnitude, -math.sin(angle_rad) * cvs.magnitude)
             vel = (vel[0] * int(mm.move_facing_direction), vel[1])
             self.body.velocity = pymunk.Vec2d(vel[0], vel[1])
+        
+        # Process caster velocity damp XY.
+        cvdxy = changes.caster_velocity_damp_xy
+        if cvdxy is not None:
+            vx, vy = self.body.velocity
+            if getattr(cvdxy, 'activeX', False):
+                vx *= cvdxy.dampX
+            if getattr(cvdxy, 'activeY', False):
+                vy *= cvdxy.dampY
+            self.body.velocity = pymunk.Vec2d(vx, vy)
 
         # Process caster velocity set XY.
         cvsxy = changes.caster_velocity_set_xy
@@ -3421,17 +3474,31 @@ class Player(GameObject):
                 vy += cvaxy.magnitudeY
             self.body.velocity = pymunk.Vec2d(vx, vy)
         
+        
+        
         # Process hit velocity set XY.
         hvsxy = changes.hit_velocity_set_xy
         if hvsxy is not None:
-            vx, vy = self.body.velocity
-            if getattr(hvsxy, 'activeX', False):
-                vx = hvsxy.magnitudeX * int(mm.move_facing_direction)
-            if getattr(hvsxy, 'activeY', False):
-                vy = hvsxy.magnitudeY
+            
             for agent in mm.all_hit_agents:
+                vx, vy = agent.body.velocity
+                if getattr(hvsxy, 'activeX', False):
+                    vx = hvsxy.magnitudeX * int(mm.move_facing_direction)
+                if getattr(hvsxy, 'activeY', False):
+                    vy = hvsxy.magnitudeY
                 agent.body.velocity = pymunk.Vec2d(vx, vy)
         
+        # Process hit velocity add XY.
+        hvaxy = changes.hit_velocity_add_xy
+        if hvaxy is not None:
+            for agent in mm.all_hit_agents:
+                vx, vy = agent.body.velocity
+                if getattr(hvaxy, 'activeX', False):
+                    vx += hvaxy.magnitudeX * int(mm.move_facing_direction)
+                if getattr(hvaxy, 'activeY', False):
+                    vy += hvaxy.magnitudeY
+                agent.body.velocity = pymunk.Vec2d(vx, vy)
+
         # Process hit teleport
         hpsxy = changes.hit_pos_set_xy
         if hpsxy is not None:
@@ -3449,15 +3516,7 @@ class Player(GameObject):
                 agent.body.position = pymunk.Vec2d(px, py)
 
 
-        # Process caster velocity damp XY.
-        cvdxy = changes.caster_velocity_damp_xy
-        if cvdxy is not None:
-            vx, vy = self.body.velocity
-            if getattr(cvdxy, 'activeX', False):
-                vx *= cvdxy.dampX
-            if getattr(cvdxy, 'activeY', False):
-                vy *= cvdxy.dampY
-            self.body.velocity = pymunk.Vec2d(vx, vy)
+        
 
     def get_move(self) -> MoveType:
         # Assuming that 'p' is a Player instance and that p.input is an instance of PlayerInputHandler.
@@ -3860,7 +3919,7 @@ class WeaponSpawner:
         self.world_pos = [random.randint(-5,5),1.75]
         
         name = 'Spear' if random.randint(0, 1) == 0 else 'Hammer'
-        name = 'Hammer'
+        
         #print(name)
         self.active_weapon = self.pool.get_weapon(self.env, name)
         self.active_weapon.activate(self.camera, self.world_pos,current_frame)
