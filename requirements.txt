@@ -7,6 +7,7 @@ matplotlib
 numpy==1.26.4
 openai==1.61.1
 opencv-python==4.11.0.86
+pytest
 pandas==2.2.2
 pygame==2.6.1
 pymunk==6.2.1

@@ -27,9 +27,9 @@ apt-get update && apt-get install -y \
 # ----------------------------
 # Upgrade pip and install gdown if missing
 # ----------------------------
-python3 -m pip install --upgrade pip
-if ! python3 -m pip show gdown &> /dev/null; then
-    python3 -m pip install gdown --no-cache-dir
+python -m pip install --upgrade pip
+if ! python -m pip show gdown &> /dev/null; then
+    python -m pip install gdown --no-cache-dir
 fi
 
 # ----------------------------
