@@ -1011,8 +1011,6 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
             'Groundpound': MoveType.GROUNDPOUND,
         }
 
-        
-
         for file in sorted(os.listdir('environment/unarmed_attacks')):
             name = file.split('.')[0]
    
@@ -1020,18 +1018,18 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
             if name not in self.keys.keys(): continue
             try:
-                with open(os.path.join('unarmed_attacks', file)) as f:
+                with open(os.path.join('environment/unarmed_attacks', file)) as f:
                     move_data = json.load(f)
             except Exception as e:
                 print(f"Error loading {file}: {e}")
 
             self.attacks[self.keys[name]] = move_data 
 
-        for file in sorted(os.listdir('environment/spear_attacks')):
+        for file in sorted(os.listdir('environment/environment/spear_attacks')):
             name = file.split('.')[0].split(" ")[1]
             if name not in self.keys.keys(): continue
             try:
-                with open(os.path.join('spear_attacks', file)) as f:
+                with open(os.path.join('environment/spear_attacks', file)) as f:
                     move_data = json.load(f)
             except Exception as e:
                 print(f"Error loading {file}: {e}")
@@ -1042,7 +1040,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
             name = file.split('.')[0].split(" ")[1]
             if name not in self.keys.keys(): continue
             try:
-                with open(os.path.join('hammer_attacks', file)) as f:
+                with open(os.path.join('environment/hammer_attacks', file)) as f:
                     move_data = json.load(f)
             except Exception as e:
                 print(f"Error loading {file}: {e}")
