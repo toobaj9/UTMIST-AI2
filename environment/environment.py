@@ -3418,7 +3418,7 @@ class Player(GameObject):
         if not os.path.exists(animation_folder):
             self.load_assets()
         self.animation_sprite_2d = AnimationSprite2D(self.env.camera, 1.0, 'environment/assets/player', agent_id)
-        self.attack_sprite = AnimationSprite2D(self.env.camera, 2.0, 'envirionment/assets/attacks', agent_id)
+        self.attack_sprite = AnimationSprite2D(self.env.camera, 2.0, 'environment/assets/attacks', agent_id)
 
         self.shape.filter = pymunk.ShapeFilter(
             categories=PLAYER_CAT,
