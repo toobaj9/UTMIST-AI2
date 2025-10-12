@@ -66,4 +66,4 @@ jobs:
       # Step 5: Run battle
       - name: Run battle
         run: |
-          python user/battle.py "agents/${{ github.event.inputs.username1 }}/my_agent.py" "agents/${{ github.event.inputs.username2 }}/my_agent.py"
+          python3 user/battle.py "agents/${{ github.event.inputs.username1 }}/my_agent.py" "agents/${{ github.event.inputs.username2 }}/my_agent.py"

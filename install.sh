@@ -64,7 +64,7 @@ download_and_unzip 1LAOL8sYCUfsCk3TEA3vvyJCLSl0EdwYB attacks
 # ----------------------------
 if [ -f requirements.txt ]; then
     echo "Installing Python dependencies..."
-    python -m pip install -r requirements.txt
+    python3 -m pip install -r requirements.txt
 else
     echo "No requirements.txt found. Skipping Python dependency installation."
 fi
