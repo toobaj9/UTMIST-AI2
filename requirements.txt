@@ -1,6 +1,7 @@
 cloudpickle==3.0.0
 IPython
 gdown
+loguru
 gym==0.25.2
 gymnasium==1.0.0
 matplotlib
