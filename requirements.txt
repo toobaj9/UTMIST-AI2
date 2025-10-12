@@ -5,7 +5,7 @@ loguru
 gym==0.25.2
 gymnasium==1.0.0
 matplotlib
-numpy==1.26.4
+numpy==2.1.1
 openai==1.61.1
 opencv-python==4.11.0.86
 pytest
@@ -14,7 +14,6 @@ pygame==2.6.1
 pymunk==6.2.1
 PyOpenGL==3.1.9
 pyspark==3.5.4
-pytensor==2.26.4
 sb3_contrib==2.3.0
 scikit-image==0.25.1
 scikit-learn==1.6.1
