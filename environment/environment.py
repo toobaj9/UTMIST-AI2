@@ -4316,7 +4316,7 @@ class WeaponSpawner:
         name = 'Spear' if random.randint(0, 1) == 0 else 'Hammer'
 
         #print(name)
-        self.active_weapon = self.pool.get_weapon(self.env, name)
+        self.active_weapon = self.pool.get_weapon(self.env, name, True)
         self.active_weapon.activate(self.camera, self.world_pos,current_frame)
 
         self.last_spawn_frame = current_frame
