@@ -1,4 +1,3 @@
-import argparse
 import pytest 
 from loguru import logger
 import importlib.util
@@ -34,18 +33,11 @@ def test_agent_batte():
     assert agent_1_path is not None and agent_2_path is not None, "Could not find path to agents"
 
     # Dynamically import and instantiate both agents
-    Agent1 = load_agent_class(os.getenv("VARIABLE_NAME"))
-    Agent2 = load_agent_class(os.getenv("VARIABLE_NAME"))
+    Agent1 = load_agent_class(agent_1_path)
+    Agent2 = load_agent_class(agent_2_path)
 
     agent1_instance = Agent1()
     agent2_instance = Agent2()
 
     logger.info("✅ Both agents successfully instantiated.")
     logger.info(f"{Agent1.__name__} vs {Agent2.__name__}")
-
-    # Example match logic
-    # (Replace this with your environment logic or RL arena logic)
-    # print("Starting match...")
-
-    # print("Match complete! Reporting results...")
-
