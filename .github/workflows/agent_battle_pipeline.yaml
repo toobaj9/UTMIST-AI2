@@ -11,16 +11,15 @@ on:
         required: true
 
 jobs:
-  # check-inputs:
-  #   name: Validate Inputs
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Validate usernames
-  #       run: |
-  #         if [ "${{ github.event.inputs.username1 }}" = "${{ github.event.inputs.username2 }}" ]; then
-  #           echo "Error: Usernames must be different."
-  #           exit 1
-  #         fi
+  check-inputs:
+    name: Validate Inputs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate usernames
+        run: |
+          if [ "${{ github.event.inputs.username1 }}" = "${{ github.event.inputs.username2 }}" ]; then
+            echo "Error: Usernames must be different."
+          fi
 
   battle:
     name: Battle
