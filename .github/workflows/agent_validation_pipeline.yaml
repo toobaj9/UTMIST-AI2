@@ -42,7 +42,7 @@ jobs:
       # === Step 3: Run validation ===
       - name: Run validation
         working-directory: submission
-        run: pytest user/validate.py
+        run: pytest -s user/validate.py
 
       # === Step 4: Upload results as an artifact ===
       - name: Upload Results

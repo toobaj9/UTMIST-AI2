@@ -14,6 +14,8 @@ remove_path() {
 
 apt update && apt install -y python3-apt
 
+apt-get update && apt-get install -y ffmpeg
+
 apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0

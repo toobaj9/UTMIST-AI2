@@ -1,15 +1,57 @@
-# Battle Workflow Script
-import argparse
+import pytest 
+from loguru import logger
+import importlib.util
+import os
+import sys
+from environment.agent import run_match , CameraResolution , gen_reward_manager
 
-def main():
-    parser = argparse.ArgumentParser(description="Run RL Tournament battle.")
-    parser.add_argument("--agent1", required=True, help="First agent path name")
-    parser.add_argument("--agent2", required=True, help="Second agent path name")
-    args = parser.parse_args()
-    print(f"Success! Branches: {args.agent1} vs {args.agent2}")
-    # Pulls models from some centralized DB
-    # Load their models and get their agent code 
-    # Run match with the agent class instances
-    # Get match data post match and report it somewhere
-if __name__ == "__main__":
-    main()
+def load_agent_class(file_path):
+    """Dynamically load SubmittedAgent class from a given Python file."""
+    file_path = os.path.abspath(file_path)
+    module_name = os.path.splitext(os.path.basename(file_path))[0]
+
+    # Load module spec and import dynamically
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    if spec is None:
+        raise ImportError(f"Cannot load spec for {file_path}")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    # Expecting a class named SubmittedAgent in the file
+    if not hasattr(module, "SubmittedAgent"):
+        raise AttributeError(f"File {file_path} does not define a SubmittedAgent class.")
+
+    return module.SubmittedAgent
+
+@pytest.mark.timeout(300) 
+def test_agent_batte():
+    # Get paths to the agents
+    logger.info(f"Loading agents: ")
+    agent_1_path = os.getenv("AGENT1_PATH")
+    agent_2_path = os.getenv("AGENT2_PATH")
+    assert agent_1_path is not None and agent_2_path is not None, "Could not find path to agents"
+
+    # Dynamically import and instantiate both agents
+    Agent1 = load_agent_class(agent_1_path)
+    Agent2 = load_agent_class(agent_2_path)
+
+    agent1_instance = Agent1()
+    agent2_instance = Agent2()
+    reward_manager = gen_reward_manager()
+    match_time = 90
+    logger.info("✅ Both agents successfully instantiated.")
+    logger.info(f"{Agent1.__name__} vs {Agent2.__name__}")
+    run_match(agent1_instance,
+            agent_2=agent2_instance,
+            video_path=f'battle.mp4',
+            agent_1_name='Agent 1',
+            agent_2_name='Agent 2',
+            resolution=CameraResolution.LOW,
+            reward_manager=reward_manager,
+            max_timesteps=30 * match_time,
+            train_mode=True
+            )
+    logger.info("Battle has completed successfully!")
+

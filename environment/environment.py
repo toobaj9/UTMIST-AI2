@@ -1011,27 +1011,26 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
             'Groundpound': MoveType.GROUNDPOUND,
         }
 
-        
-
         for file in sorted(os.listdir('environment/unarmed_attacks')):
             name = file.split('.')[0]
    
             name = name.split(" ")[1]
 
             if name not in self.keys.keys(): continue
+            move_data = None
             try:
-                with open(os.path.join('unarmed_attacks', file)) as f:
+                with open(os.path.join('environment/unarmed_attacks', file)) as f:
                     move_data = json.load(f)
             except Exception as e:
                 print(f"Error loading {file}: {e}")
-
             self.attacks[self.keys[name]] = move_data 
 
         for file in sorted(os.listdir('environment/spear_attacks')):
             name = file.split('.')[0].split(" ")[1]
             if name not in self.keys.keys(): continue
+            move_data = None
             try:
-                with open(os.path.join('spear_attacks', file)) as f:
+                with open(os.path.join('environment/spear_attacks', file)) as f:
                     move_data = json.load(f)
             except Exception as e:
                 print(f"Error loading {file}: {e}")
@@ -1041,8 +1040,9 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         for file in sorted(os.listdir('environment/hammer_attacks')):
             name = file.split('.')[0].split(" ")[1]
             if name not in self.keys.keys(): continue
+            move_data = None
             try:
-                with open(os.path.join('hammer_attacks', file)) as f:
+                with open(os.path.join('environment/hammer_attacks', file)) as f:
                     move_data = json.load(f)
             except Exception as e:
                 print(f"Error loading {file}: {e}")
@@ -3418,7 +3418,7 @@ class Player(GameObject):
         if not os.path.exists(animation_folder):
             self.load_assets()
         self.animation_sprite_2d = AnimationSprite2D(self.env.camera, 1.0, 'environment/assets/player', agent_id)
-        self.attack_sprite = AnimationSprite2D(self.env.camera, 2.0, 'envirionment/assets/attacks', agent_id)
+        self.attack_sprite = AnimationSprite2D(self.env.camera, 2.0, 'environment/assets/attacks', agent_id)
 
         self.shape.filter = pymunk.ShapeFilter(
             categories=PLAYER_CAT,
@@ -4316,7 +4316,7 @@ class WeaponSpawner:
         name = 'Spear' if random.randint(0, 1) == 0 else 'Hammer'
 
         #print(name)
-        self.active_weapon = self.pool.get_weapon(self.env, name)
+        self.active_weapon = self.pool.get_weapon(self.env, name, True)
         self.active_weapon.activate(self.camera, self.world_pos,current_frame)
 
         self.last_spawn_frame = current_frame
