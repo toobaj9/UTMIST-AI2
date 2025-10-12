@@ -15,6 +15,10 @@ remove_path() {
 apt update && apt install -y python3-apt
 
 apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0
+
+apt-get update && apt-get install -y \
     unzip \
     python3 \
     python3-dev\
