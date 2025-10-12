@@ -27,16 +27,15 @@ def load_agent_class(file_path):
 
 @pytest.mark.timeout(300) 
 def test_agent_batte():
-    parser = argparse.ArgumentParser(description="Run RL Tournament battle.")
-    parser.add_argument("--agent1", required=True, help="Path to first agent file")
-    parser.add_argument("--agent2", required=True, help="Path to second agent file")
-    args = parser.parse_args()
-
-    logger.info(f"Loading agents: {args.agent1} vs {args.agent2}")
+    # Get paths to the agents
+    logger.info(f"Loading agents: ")
+    agent_1_path = os.getenv("AGENT1_PATH")
+    agent_2_path = os.getenv("AGENT2_PATH")
+    assert agent_1_path is not None and agent_2_path is not None, "Could not find path to agents"
 
     # Dynamically import and instantiate both agents
-    Agent1 = load_agent_class(args.agent1)
-    Agent2 = load_agent_class(args.agent2)
+    Agent1 = load_agent_class(os.getenv("VARIABLE_NAME"))
+    Agent2 = load_agent_class(os.getenv("VARIABLE_NAME"))
 
     agent1_instance = Agent1()
     agent2_instance = Agent2()

@@ -62,7 +62,13 @@ jobs:
           echo "Agents copied successfully:"
           ls -R agents
 
-      # Step 5: Run battle
+      # Step 5: Run battle using environment variables
       - name: Run battle
+        env:
+          AGENT1_PATH: agents/${{ github.event.inputs.username1 }}/my_agent.py
+          AGENT2_PATH: agents/${{ github.event.inputs.username2 }}/my_agent.py
         run: |
-          python3 -m pytest user/battle.py -- --agent1 "agents/${{ github.event.inputs.username1 }}/my_agent.py" --agent2 "agents/${{ github.event.inputs.username2 }}/my_agent.py"
+          echo "Running battle between:"
+          echo "Agent 1: $AGENT1_PATH"
+          echo "Agent 2: $AGENT2_PATH"
+          python3 -m pytest user/battle.py 
