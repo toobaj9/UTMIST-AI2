@@ -41,3 +41,15 @@ def test_agent_batte():
 
     logger.info("✅ Both agents successfully instantiated.")
     logger.info(f"{Agent1.__name__} vs {Agent2.__name__}")
+    run_match(agent1_instance,
+            agent_2=agent2_instance,
+            video_path=f'battle.mp4',
+            agent_1_name='Agent 1',
+            agent_2_name='Agent 2',
+            resolution=CameraResolution.LOW,
+            reward_manager=reward_manager,
+            max_timesteps=30 * match_time,
+            train_mode=True
+            )
+    logger.info("Battle has completed successfully!")
+

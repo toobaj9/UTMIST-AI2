@@ -71,4 +71,4 @@ jobs:
           echo "Running battle between:"
           echo "Agent 1: $AGENT1_PATH"
           echo "Agent 2: $AGENT2_PATH"
-          python3 -m pytest user/battle.py 
+          python3 -m pytest -s user/battle.py 
