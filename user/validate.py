@@ -10,7 +10,7 @@ from user.my_agent import SubmittedAgent
 @pytest.mark.timeout(60) 
 def test_agent_validation():
     logger.info("Warming up your agent ...")
-    my_agent = SubmittedAgent() # Doesnt work at the moment but using constant agent is fine
+    my_agent = SubmittedAgent() 
     logger.info("Warming up your opponent's agent ...")
     opponent = ConstantAgent()
     match_time = 90

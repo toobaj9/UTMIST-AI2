@@ -11,23 +11,23 @@ on:
         required: true
 
 jobs:
-  check-inputs:
-    name: Validate Inputs
-    runs-on: self-hosted
-    steps:
-      - name: Validate usernames
-        run: |
-          if [ "${{ github.event.inputs.username1 }}" = "${{ github.event.inputs.username2 }}" ]; then
-            echo "Error: Usernames must be different."
-            exit 1
-          fi
+  # check-inputs:
+  #   name: Validate Inputs
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Validate usernames
+  #       run: |
+  #         if [ "${{ github.event.inputs.username1 }}" = "${{ github.event.inputs.username2 }}" ]; then
+  #           echo "Error: Usernames must be different."
+  #           exit 1
+  #         fi
 
   battle:
     name: Battle
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: check-inputs
     container:
-      image: python:3.10-slim
+      image: python:3.10
 
     steps:
       # Step 1: Checkout the main repo
@@ -66,4 +66,4 @@ jobs:
       # Step 5: Run battle
       - name: Run battle
         run: |
-          python3 user/battle.py "agents/${{ github.event.inputs.username1 }}/my_agent.py" "agents/${{ github.event.inputs.username2 }}/my_agent.py"
+          python3 -m pytest user/battle.py "agents/${{ github.event.inputs.username1 }}/my_agent.py" "agents/${{ github.event.inputs.username2 }}/my_agent.py"
