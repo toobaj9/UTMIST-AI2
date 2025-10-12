@@ -3,6 +3,7 @@ from loguru import logger
 import importlib.util
 import os
 import sys
+from environment.agent import run_match , CameraResolution , gen_reward_manager
 
 def load_agent_class(file_path):
     """Dynamically load SubmittedAgent class from a given Python file."""
@@ -38,7 +39,8 @@ def test_agent_batte():
 
     agent1_instance = Agent1()
     agent2_instance = Agent2()
-
+    reward_manager = gen_reward_manager()
+    match_time = 90
     logger.info("✅ Both agents successfully instantiated.")
     logger.info(f"{Agent1.__name__} vs {Agent2.__name__}")
     run_match(agent1_instance,
