@@ -1,4 +1,5 @@
 import argparse
+from loguru import logger
 import importlib.util
 import os
 import sys
@@ -23,14 +24,14 @@ def load_agent_class(file_path):
 
     return module.SubmittedAgent
 
-
-def main():
+@pytest.mark.timeout(300) 
+def test_agent_batte():
     parser = argparse.ArgumentParser(description="Run RL Tournament battle.")
     parser.add_argument("--agent1", required=True, help="Path to first agent file")
     parser.add_argument("--agent2", required=True, help="Path to second agent file")
     args = parser.parse_args()
 
-    print(f"Loading agents: {args.agent1} vs {args.agent2}")
+    logger.info(f"Loading agents: {args.agent1} vs {args.agent2}")
 
     # Dynamically import and instantiate both agents
     Agent1 = load_agent_class(args.agent1)
@@ -39,8 +40,8 @@ def main():
     agent1_instance = Agent1()
     agent2_instance = Agent2()
 
-    print("✅ Both agents successfully instantiated.")
-    print(f"{Agent1.__name__} vs {Agent2.__name__}")
+    logger.info("✅ Both agents successfully instantiated.")
+    logger.info(f"{Agent1.__name__} vs {Agent2.__name__}")
 
     # Example match logic
     # (Replace this with your environment logic or RL arena logic)
@@ -48,6 +49,3 @@ def main():
 
     # print("Match complete! Reporting results...")
 
-
-if __name__ == "__main__":
-    main()
