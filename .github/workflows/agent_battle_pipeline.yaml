@@ -33,7 +33,7 @@ jobs:
       - name: Checkout main repo
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: aling/battle
 
       # Step 2: Install dependencies
       - name: Install dependencies
