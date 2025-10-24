@@ -9,8 +9,14 @@ def create_participant(username: str) -> None:
     key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
     client = create_client(url, key)
     # Exit early if user already exists
-    existing = client.table("ai2_leaderboard").select("username").eq("username", username).single().execute()
-    if getattr(existing, "data", None):
+    existing = client.table("ai2_leaderboard").select("username").eq("username", username).execute()
+    rows = []
+    if hasattr(existing, "data") and isinstance(existing.data, list):
+        rows = existing.data
+    elif hasattr(existing, "data") and isinstance(existing.data, dict):
+        # Some client versions may return a dict when using RPCs/single; normalize
+        rows = [existing.data]
+    if rows:
         return
     client.table("ai2_leaderboard").insert({"username": username, "elo": 1000}).execute()
 

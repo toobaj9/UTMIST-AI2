@@ -57,17 +57,22 @@ jobs:
           # function to check CI status for a user fork
           check_ci_pass() {
             local user_repo=$1
-            # Query last workflow run for main branch and main validation workflow
-            response=$(gh api repos/${user_repo}/actions/workflows --jq '.workflows[] | select(.name == "RL Tournament Validation Pipeline" or (.path | endswith("agent_validation_pipeline.yaml"))) | .id' || true)
-            if [ -z "$response" ]; then
-              echo "Could not find the validation workflow (name 'RL Tournament Validation Pipeline' or file 'agent_validation_pipeline.yaml') for $user_repo"
+            # Determine default branch of the fork
+            default_branch=$(gh api repos/${user_repo} --jq .default_branch || echo main)
+            # Find validation workflow by name or filename (.yaml/.yml)
+            workflow_id=$(gh api repos/${user_repo}/actions/workflows \
+              --jq '.workflows[] | select(.name == "RL Tournament Validation Pipeline" or (.path | endswith("agent_validation_pipeline.yaml") or .path | endswith("agent_validation_pipeline.yml"))) | .id' || true)
+            if [ -z "$workflow_id" ]; then
+              echo "Could not find the validation workflow for $user_repo"
+              echo "Available workflows (name :: path):"
+              gh api repos/${user_repo}/actions/workflows --jq '.workflows[] | "\(.name) :: \(.path)"' || true
               exit 1
             fi
-            workflow_id=$response
 
-            run_status=$(gh api "repos/${user_repo}/actions/workflows/${workflow_id}/runs?branch=main&status=success&per_page=1" --jq '.workflow_runs[0].conclusion' || true)
+            # Check latest completed run on the fork's default branch
+            run_status=$(gh api "repos/${user_repo}/actions/workflows/${workflow_id}/runs?branch=${default_branch}&status=completed&per_page=1" --jq '.workflow_runs[0].conclusion' || true)
             if [ "$run_status" != "success" ]; then
-              echo "Latest validation pipeline on main branch for $user_repo did not succeed."
+              echo "Latest validation pipeline on branch '${default_branch}' for $user_repo did not succeed (conclusion=$run_status)."
               exit 1
             fi
             echo "$user_repo is validated."
