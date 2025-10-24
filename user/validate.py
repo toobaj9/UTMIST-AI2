@@ -30,5 +30,6 @@ def test_agent_validation():
             max_timesteps=30 * match_time,
             train_mode=True
             )
+    update_validation_status(username, True)
     logger.info("Validation match has completed successfully! Your agent is ready for battle!")
 
