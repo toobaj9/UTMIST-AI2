@@ -11,6 +11,7 @@ __pycache__/
 attacks.zip
 assets.zip
 .venv
+.env
 
 /checkpoints/*
 

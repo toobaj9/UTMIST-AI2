@@ -44,44 +44,27 @@ jobs:
         run: |
           chmod +x install.sh
           ./install.sh
-      # Step 3: Check participants' validation CI status
-      - name: Check participants' validation CI status
+      # Step 3: Check both participants have passed validation (via api.py)
+      - name: Check participants' validation status server-side
         id: check-validation
         env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           USERNAME1: ${{ github.event.inputs.username1 }}
           USERNAME2: ${{ github.event.inputs.username2 }}
-          REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -e
-          # function to check CI status for a user fork
-          check_ci_pass() {
-            local user_repo=$1
-            # Query last workflow run for main branch and main validation workflow
-            response=$(gh api repos/${user_repo}/actions/workflows --jq '.workflows[] | select(.name == "RL Tournament Validation Pipeline" or (.path | endswith("agent_validation_pipeline.yaml"))) | .id' || true)
-            if [ -z "$response" ]; then
-              echo "Could not find the validation workflow (name 'RL Tournament Validation Pipeline' or file 'agent_validation_pipeline.yaml') for $user_repo"
-              exit 1
-            fi
-            workflow_id=$response
-
-            run_status=$(gh api "repos/${user_repo}/actions/workflows/${workflow_id}/runs?branch=main&status=success&per_page=1" --jq '.workflow_runs[0].conclusion' || true)
-            if [ "$run_status" != "success" ]; then
-              echo "Latest validation pipeline on main branch for $user_repo did not succeed."
-              exit 1
-            fi
-            echo "$user_repo is validated."
-          }
-
-          # Fork repo name is assumed same as upstream
-          REPO_NAME=$(basename "$REPO")
-
-          # Check username1
-          check_ci_pass "${USERNAME1}/${REPO_NAME}"
-          # Check username2
-          check_ci_pass "${USERNAME2}/${REPO_NAME}"
-
-          echo "Both participants have green validation pipelines on main branch."
+          python3 -c "
+          import sys
+          sys.path.insert(0, 'server')
+          import api
+          u1 = '${{ github.event.inputs.username1 }}'
+          u2 = '${{ github.event.inputs.username2 }}'
+          if not api.validate_battle(u1, u2):
+            print(f'Validation failed: One or both users have not passed validation (u1={u1}, u2={u2})')
+            sys.exit(1)
+          else:
+            print(f'Validation passed: Both users have passed validation (u1={u1}, u2={u2})')
+          "
 
       # Step 4: Clone participant forks
       - name: Clone forks

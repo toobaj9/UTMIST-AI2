@@ -4,7 +4,7 @@ import importlib.util
 import os
 import sys
 from environment.agent import run_match , CameraResolution , gen_reward_manager
-from server.api import get_participant_elo, update_participant_elo, elo_update
+from user.utils import get_participant_elo, update_participant_elo, elo_update
 
 
 def load_agent_class(file_path):
@@ -63,7 +63,7 @@ def test_agent_batte():
             train_mode=True
             )
 
-    new_elo1, new_elo2 = elo_update(agent1_elo, agent2_elo, match_result.player1_result)
+    new_elo1, new_elo2 = elo_update(agent1_elo, agent2_elo, match_result.player1_result.value)
     update_participant_elo(agent1_username, new_elo1)
     update_participant_elo(agent2_username, new_elo2)
 
