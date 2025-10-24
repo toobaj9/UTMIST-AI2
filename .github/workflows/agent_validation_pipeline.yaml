@@ -34,6 +34,10 @@ jobs:
           BRANCH="main"
           
           echo "Cloning submission for: $USERNAME"
+          # Ensure a clean target directory
+          if [ -d submission ]; then
+            rm -rf submission
+          fi
           git clone --branch "$BRANCH" "$REPO" submission
 
       # === Step 2: Install submission dependencies ===
