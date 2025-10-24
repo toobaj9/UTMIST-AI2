@@ -452,7 +452,7 @@ def gen_reward_manager():
         #'head_to_opponent': RewTerm(func=head_to_opponent, weight=0.05),
         'penalize_attack_reward': RewTerm(func=in_state_reward, weight=-0.04, params={'desired_state': AttackState}),
         'holding_more_than_3_keys': RewTerm(func=holding_more_than_3_keys, weight=-0.01),
-        #'taunt_reward': RewTerm(func=in_state_reward, weight=0.2, params={'desired_state': TauntState}),'
+        #'taunt_reward': RewTerm(func=in_state_reward, weight=0.2, params={'desired_state': TauntState}),
     }
     signal_subscriptions = {
         'on_win_reward': ('win_signal', RewTerm(func=on_win_reward, weight=50)),
