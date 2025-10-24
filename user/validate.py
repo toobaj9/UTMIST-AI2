@@ -5,10 +5,12 @@ from loguru import logger
 from IPython.display import Video
 from environment.agent import UserInputAgent, ConstantAgent, run_match, CameraResolution,  gen_reward_manager
 from user.my_agent import SubmittedAgent
-
+from server.api import create_participant
 
 @pytest.mark.timeout(60) 
 def test_agent_validation():
+    username = os.getenv("USERNAME")
+    create_participant(username)
     logger.info("Warming up your agent ...")
     my_agent = SubmittedAgent() 
     logger.info("Warming up your opponent's agent ...")

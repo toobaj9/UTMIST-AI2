@@ -46,6 +46,8 @@ jobs:
       # === Step 3: Run validation ===
       - name: Run validation
         working-directory: submission
+        env:
+          USERNAME: ${{ github.event.inputs.username }}
         run: pytest -s user/validate.py
 
       # === Step 4: Upload results as an artifact ===

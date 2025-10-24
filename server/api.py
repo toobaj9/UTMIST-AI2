@@ -3,7 +3,16 @@ import sys
 from typing import Optional
 from supabase import create_client
 
-
+def create_participant(username: str) -> None:
+    """Create a participant in the ai2_leaderboard table."""
+    url = os.environ["SUPABASE_URL"]
+    key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+    client = create_client(url, key)
+    # Exit early if user already exists
+    existing = client.table("ai2_leaderboard").select("username").eq("username", username).single().execute()
+    if getattr(existing, "data", None):
+        return
+    client.table("ai2_leaderboard").insert({"username": username, "elo": 1000}).execute()
 
 def elo_update(elo1, elo2, result, k=32):
     """
