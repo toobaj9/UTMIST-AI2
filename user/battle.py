@@ -63,7 +63,7 @@ def test_agent_batte():
             train_mode=True
             )
 
-    new_elo1, new_elo2 = elo_update(agent1_elo, agent2_elo, match_result.player1_result)
+    new_elo1, new_elo2 = elo_update(agent1_elo, agent2_elo, match_result.player1_result.value)
     update_participant_elo(agent1_username, new_elo1)
     update_participant_elo(agent2_username, new_elo2)
 
