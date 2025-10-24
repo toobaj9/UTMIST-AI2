@@ -4,10 +4,9 @@ import skvideo
 import skvideo.io
 from loguru import logger
 from IPython.display import Video
-
 from environment.agent import UserInputAgent, ConstantAgent, run_match, CameraResolution,  gen_reward_manager
 from user.my_agent import SubmittedAgent
-from server.api import create_participant  # provided by real module or conftest fallback
+from server.api import create_participant, update_validation_status
 
 @pytest.mark.timeout(60) 
 def test_agent_validation():

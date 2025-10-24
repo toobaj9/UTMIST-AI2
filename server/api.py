@@ -112,29 +112,6 @@ def main(argv: list[str]) -> int:
     if not is_valid:
         print(f"User {u1} has not passed validation", file=sys.stderr)
         return 1
-
-
-    # if len(argv) != 3:
-    #     print("Usage: python server/elo.py <username1> <username2>", file=sys.stderr)
-    #     return 2
-    # u1, u2 = argv[1], argv[2]
-    # try:
-    #     e1 = get_participant_elo(u1)
-    #     e2 = get_participant_elo(u2)
-    # except Exception as e:
-    #     print(f"Error: {e}", file=sys.stderr)
-    #     return 1
-
-    # try:
-    #     update_participant_elo(u1, 1234)
-    #     update_participant_elo(u2, 2345)
-    # except Exception as e:
-    #     print(f"Error: {e}", file=sys.stderr)
-    #     return 1
-
-    # print("ELOs updated successfully")
-    # print(f"ELO for {u1}: {get_participant_elo(u1)}")
-    # print(f"ELO for {u2}: {get_participant_elo(u2)}")
     return 0
 
 
