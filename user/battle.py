@@ -4,6 +4,8 @@ import importlib.util
 import os
 import sys
 from environment.agent import run_match , CameraResolution , gen_reward_manager
+from server.elo import get_participant_elo, update_participant_elo, elo_update
+
 
 def load_agent_class(file_path):
     """Dynamically load SubmittedAgent class from a given Python file."""
@@ -31,7 +33,14 @@ def test_agent_batte():
     logger.info(f"Loading agents: ")
     agent_1_path = os.getenv("AGENT1_PATH")
     agent_2_path = os.getenv("AGENT2_PATH")
+
     assert agent_1_path is not None and agent_2_path is not None, "Could not find path to agents"
+
+    agent1_username = agent_1_path.split("/")[-2]
+    agent2_username = agent_2_path.split("/")[-2]
+
+    agent1_elo = get_participant_elo(agent1_username)
+    agent2_elo = get_participant_elo(agent2_username)
 
     # Dynamically import and instantiate both agents
     Agent1 = load_agent_class(agent_1_path)
@@ -42,8 +51,8 @@ def test_agent_batte():
     reward_manager = gen_reward_manager()
     match_time = 90
     logger.info("✅ Both agents successfully instantiated.")
-    logger.info(f"{Agent1.__name__} vs {Agent2.__name__}")
-    run_match(agent1_instance,
+    logger.info(f"{agent1_username} vs {agent2_username}")
+    match_result = run_match(agent1_instance,
             agent_2=agent2_instance,
             video_path=f'battle.mp4',
             agent_1_name='Agent 1',
@@ -53,5 +62,11 @@ def test_agent_batte():
             max_timesteps=30 * match_time,
             train_mode=True
             )
+
+    new_elo1, new_elo2 = elo_update(agent1_elo, agent2_elo, match_result.player1_result)
+    update_participant_elo(agent1_username, new_elo1)
+    update_participant_elo(agent2_username, new_elo2)
+
     logger.info("Battle has completed successfully!")
+    logger.info(f"{agent1_username} vs {agent2_username} - {match_result}")
 

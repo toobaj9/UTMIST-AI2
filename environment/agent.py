@@ -676,15 +676,25 @@ def run_match(agent_1: Agent | partial,
     env.close()
 
 
+
+
     # visualize
     # Video(video_path, embed=True, width=800) if video_path is not None else None
     player_1_stats = env.get_stats(0)
     player_2_stats = env.get_stats(1)
+
+    if player_1_stats.lives_left > player_2_stats.lives_left:
+        result = Result.WIN
+    elif player_1_stats.lives_left < player_2_stats.lives_left:
+        result = Result.LOSS
+    else:
+        result = Result.DRAW
+    
     match_stats = MatchStats(
         match_time=env.steps / env.fps,
         player1=player_1_stats,
         player2=player_2_stats,
-        player1_result=Result.WIN if player_1_stats.lives_left > player_2_stats.lives_left else Result.LOSS
+        player1_result=result
     )
 
     del env
@@ -1412,11 +1422,19 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
     # Return match stats
     player_1_stats = env.get_stats(0)
     player_2_stats = env.get_stats(1)
+
+    if player_1_stats.lives_left > player_2_stats.lives_left:
+        result = Result.WIN
+    elif player_1_stats.lives_left < player_2_stats.lives_left:
+        result = Result.LOSS
+    else:
+        result = Result.DRAW
+    
     match_stats = MatchStats(
         match_time=timestep / 30.0,
         player1=player_1_stats,
         player2=player_2_stats,
-        player1_result=Result.WIN if player_1_stats.lives_left > player_2_stats.lives_left else Result.LOSS
+        player1_result=result
     )
 
     # Close environment

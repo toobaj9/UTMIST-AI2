@@ -27,6 +27,10 @@ jobs:
     needs: check-inputs
     container:
       image: python:3.10
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
     steps:
       # Step 1: Checkout the main repo
@@ -40,8 +44,46 @@ jobs:
         run: |
           chmod +x install.sh
           ./install.sh
+      # Step 3: Check participants' validation CI status
+      - name: Check participants' validation CI status
+        id: check-validation
+        env:
+          USERNAME1: ${{ github.event.inputs.username1 }}
+          USERNAME2: ${{ github.event.inputs.username2 }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          # function to check CI status for a user fork
+          check_ci_pass() {
+            local user_repo=$1
+            # Query last workflow run for main branch and main validation workflow
+            response=$(gh api repos/${user_repo}/actions/workflows --jq '.workflows[] | select(.name == "RL Tournament Validation Pipeline" or (.path | endswith("agent_validation_pipeline.yaml"))) | .id' || true)
+            if [ -z "$response" ]; then
+              echo "Could not find the validation workflow (name 'RL Tournament Validation Pipeline' or file 'agent_validation_pipeline.yaml') for $user_repo"
+              exit 1
+            fi
+            workflow_id=$response
 
-      # Step 3: Clone participant forks
+            run_status=$(gh api "repos/${user_repo}/actions/workflows/${workflow_id}/runs?branch=main&status=success&per_page=1" --jq '.workflow_runs[0].conclusion' || true)
+            if [ "$run_status" != "success" ]; then
+              echo "Latest validation pipeline on main branch for $user_repo did not succeed."
+              exit 1
+            fi
+            echo "$user_repo is validated."
+          }
+
+          # Fork repo name is assumed same as upstream
+          REPO_NAME=$(basename "$REPO")
+
+          # Check username1
+          check_ci_pass "${USERNAME1}/${REPO_NAME}"
+          # Check username2
+          check_ci_pass "${USERNAME2}/${REPO_NAME}"
+
+          echo "Both participants have green validation pipelines on main branch."
+
+      # Step 4: Clone participant forks
       - name: Clone forks
         run: |
           echo "Cloning fork for ${{ github.event.inputs.username1 }}"
@@ -50,7 +92,7 @@ jobs:
           echo "Cloning fork for ${{ github.event.inputs.username2 }}"
           git clone "https://github.com/${{ github.event.inputs.username2 }}/$(basename $GITHUB_REPOSITORY)" fork2
 
-      # Step 4: Copy each agent to main repo under `agents/`
+      # Step 5: Copy each agent to main repo under `agents/`
       - name: Copy agents to main repo
         run: |
           mkdir -p agents/${{ github.event.inputs.username1 }}
@@ -62,7 +104,7 @@ jobs:
           echo "Agents copied successfully:"
           ls -R agents
 
-      # Step 5: Run battle using environment variables
+      # Step 6: Run battle using environment variables, including ELOs
       - name: Run battle
         env:
           AGENT1_PATH: agents/${{ github.event.inputs.username1 }}/my_agent.py

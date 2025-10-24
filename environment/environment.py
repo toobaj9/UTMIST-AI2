@@ -703,9 +703,9 @@ class Signal():
 
 
 class Result(Enum):
-    WIN = "win"
-    LOSS = "loss"
-    DRAW = "draw"
+    WIN = 1
+    LOSS = 0
+    DRAW = 0.5
 
 @dataclass
 class PlayerStats():
