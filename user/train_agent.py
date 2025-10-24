@@ -452,7 +452,7 @@ def gen_reward_manager():
         #'head_to_opponent': RewTerm(func=head_to_opponent, weight=0.05),
         'penalize_attack_reward': RewTerm(func=in_state_reward, weight=-0.04, params={'desired_state': AttackState}),
         'holding_more_than_3_keys': RewTerm(func=holding_more_than_3_keys, weight=-0.01),
-        #'taunt_reward': RewTerm(func=in_state_reward, weight=0.2, params={'desired_state': TauntState}),
+        #'taunt_reward': RewTerm(func=in_state_reward, weight=0.2, params={'desired_state': TauntState}),'
     }
     signal_subscriptions = {
         'on_win_reward': ('win_signal', RewTerm(func=on_win_reward, weight=50)),
@@ -473,11 +473,11 @@ if __name__ == '__main__':
     my_agent = RecurrentPPOAgent()
 
     # Start here if you want to train from a specific timestep. e.g:
-    #my_agent = RecurrentPPOAgent(file_path='checkpoints/experiment_3/rl_model_120006_steps.zip')
+    # my_agent = RecurrentPPOAgent(file_path='checkpoints/experiment_6/rl_model_54000_steps')
 
     # Reward manager
     reward_manager = gen_reward_manager()
-    # Self-play settings
+    # Self-play settings. You can choose SelfPlayLatest (learns against the latest saved model) or SelfPlayRandom (learns against randomly-selected full list of previously saved models)
     selfplay_handler = SelfPlayRandom(
         partial(type(my_agent)), # Agent class and its keyword arguments
                                  # type(my_agent) = Agent class

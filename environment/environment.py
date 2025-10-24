@@ -1049,11 +1049,6 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
             self.hammer_attacks[self.keys[name]] = move_data 
 
-       
-
-
-        
-
     def step(self, action: dict[int, np.ndarray]):
         
         # Create new rewards dict
@@ -1091,9 +1086,6 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
                 platform_vel = player.on_platform.velocity
                 player.body.velocity = pymunk.Vec2d(platform_vel.x, platform_vel.y)
 
-            
-
-
         # Process physics info
         for obj_name, obj in self.objects.items():
             obj.physics_process(self.dt)
@@ -1125,10 +1117,6 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
     def reset(self, seed=None) -> Tuple[dict[int, np.ndarray], dict[str, Any]]:
         self.seed = seed
-
-
-
-
         self.space = pymunk.Space()
         self.dt = 1 / 30.0
         self.space.gravity = 0, 17.808
@@ -1252,8 +1240,6 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         return True
         """
         return True
-        
-        
 
     def separate_player_platform(self, arbiter, space, data):
         """
@@ -1262,6 +1248,18 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         player_shape, platform_shape = arbiter.shapes
         player = player_shape.owner
         player.on_platform = None
+
+    def get_spawner_info(self) -> List[Tuple[str, Tuple[float]]]: 
+        # if not hasattr(self, "weaponcontroller"):
+        #     return []
+
+        spawners = []
+        for s in self.weapon_controller.spawners:
+            if(hasattr(s, "weapon_name")):
+                spawners.append([s.weapon_name, s.world_pos]) 
+            elif (s.active_weapon != None):
+                spawners.append(["Random", s.world_pos])
+        return spawners
 
     def _setup(self):
         # Collision fix - prevent players from colliding with each other
@@ -4311,7 +4309,13 @@ class WeaponSpawner:
                 self.flag = False
 
     def spawn_weapon(self, current_frame):#martin
-        self.world_pos = [random.randint(-5,5),1.75]
+        y_pos = self.world_pos[1]
+        if(y_pos == 0+0.7):
+           x_pos = random.uniform(2.6, 6.5)
+        else:
+           x_pos = -random.uniform(2.6, 6.5)
+    
+        self.world_pos = [x_pos,y_pos]
         
         name = 'Spear' if random.randint(0, 1) == 0 else 'Hammer'
 
