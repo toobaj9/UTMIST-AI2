@@ -3,11 +3,6 @@ import sys
 from typing import Optional
 from supabase import create_client
 
-
-def validate_battle(username1, username2) -> bool:
-    """Validate two participants for a battle."""
-    return check_validation_status(username1) and check_validation_status(username2)
-
 def check_validation_status(username: str) -> bool:
     """Check if a participant has passed validation."""
     url = os.environ["SUPABASE_URL"]
@@ -20,6 +15,10 @@ def check_validation_status(username: str) -> bool:
     if rows:
         return bool(rows[0]["validation_status"])
     return False
+
+def validate_battle(username1, username2) -> bool:
+    """Validate two participants for a battle."""
+    return check_validation_status(username1) and check_validation_status(username2)
 
 def update_validation_status(username: str, status: bool) -> None:
     """Update the validation status for a participant."""

@@ -6,7 +6,19 @@ from loguru import logger
 from IPython.display import Video
 from environment.agent import UserInputAgent, ConstantAgent, run_match, CameraResolution,  gen_reward_manager
 from user.my_agent import SubmittedAgent
-from server.api import create_participant, update_validation_status
+try:
+    from server.api import create_participant, update_validation_status
+except ImportError:
+    import sys
+    import importlib.util
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    server_api_path = os.path.join(repo_root, 'server', 'api.py')
+    spec = importlib.util.spec_from_file_location('server.api', server_api_path)
+    api = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(api)
+    create_participant = api.create_participant
+    update_validation_status = api.update_validation_status
 
 @pytest.mark.timeout(60) 
 def test_agent_validation():
