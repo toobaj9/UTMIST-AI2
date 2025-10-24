@@ -4,7 +4,7 @@ import importlib.util
 import os
 import sys
 from environment.agent import run_match , CameraResolution , gen_reward_manager
-from server.api import get_participant_elo, update_participant_elo, elo_update
+from utils import get_participant_elo, update_participant_elo, elo_update
 
 
 def load_agent_class(file_path):
