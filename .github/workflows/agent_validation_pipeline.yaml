@@ -74,7 +74,7 @@ jobs:
   validate_ubuntu:
     if: ${{ github.event.inputs.use_tenstorrent == 'no' }}
     name: Validate Agent and Submit (Ubuntu)
-    runs-on: ubuntu-latest, self-hosted
+    runs-on: ubuntu-latest
     container:
       image: python:3.10
     env:
