@@ -14,6 +14,7 @@ b) Continue training from a specific timestep given an input `file_path`
 # -------------------------------------------------------------------
 
 import torch 
+import gymnasium as gym
 from torch.nn import functional as F
 from torch import nn as nn
 import numpy as np
@@ -255,7 +256,7 @@ class ClockworkAgent(Agent):
         return action
     
 class MLPPolicy(nn.Module):
-    def __init__(self, obs_dim=64, action_dim=10, hidden_dim=64):
+    def __init__(self, obs_dim: int = 64, action_dim: int = 10, hidden_dim: int = 64):
         """
         A 3-layer MLP policy:
         obs -> Linear(hidden_dim) -> ReLU -> Linear(hidden_dim) -> ReLU -> Linear(action_dim)
@@ -282,7 +283,7 @@ class MLPExtractor(BaseFeaturesExtractor):
     '''
     Class that defines an MLP Base Features Extractor
     '''
-    def __init__(self, observation_space: gym.Space = 64, features_dim: int = 64, hidden_dim: int = 64):
+    def __init__(self, observation_space: gym.Space, features_dim: int = 64, hidden_dim: int = 64):
         super(MLPExtractor, self).__init__(observation_space, features_dim)
         self.model = MLPPolicy(
             obs_dim=observation_space.shape[0], 
@@ -301,10 +302,10 @@ class MLPExtractor(BaseFeaturesExtractor):
         )
     
 class CustomAgent(Agent):
-    def __init__(self, sb3_class: Optional[Type[BaseAlgorithm]] = PPO, model_path: str = None, extractor: BaseFeaturesExtractor = None):
+    def __init__(self, sb3_class: Optional[Type[BaseAlgorithm]] = PPO, file_path: str = None, extractor: BaseFeaturesExtractor = None):
         self.sb3_class = sb3_class
         self.extractor = extractor
-        super().__init__(model_path)
+        super().__init__(file_path)
     
     def _initialize(self) -> None:
         if self.file_path is None:
@@ -590,7 +591,7 @@ if __name__ == '__main__':
         save_freq=100_000, # Save frequency
         max_saved=40, # Maximum number of saved models
         save_path='checkpoints', # Save path
-        run_name='experiment_8',
+        run_name='experiment_9',
         mode=SaveHandlerMode.FORCE # Save mode, FORCE or RESUME
     )
 
