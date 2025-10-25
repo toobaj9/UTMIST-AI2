@@ -1,6 +1,6 @@
 from environment.environment import RenderMode, CameraResolution
 from environment.agent import run_real_time_match
-from user.train_agent import UserInputAgent, BasedAgent, ClockworkAgent, SB3Agent, RecurrentPPOAgent #add anymore custom Agents (from train_agent.py) here as needed
+from user.train_agent import UserInputAgent, BasedAgent, ConstantAgent, ClockworkAgent, SB3Agent, RecurrentPPOAgent #add anymore custom Agents (from train_agent.py) here as needed
 from user.my_agent import SubmittedAgent
 
 my_agent = UserInputAgent()

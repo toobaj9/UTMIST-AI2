@@ -473,11 +473,11 @@ if __name__ == '__main__':
     my_agent = RecurrentPPOAgent()
 
     # Start here if you want to train from a specific timestep. e.g:
-    # my_agent = RecurrentPPOAgent(file_path='checkpoints/experiment_6/rl_model_54000_steps')
+    #my_agent = RecurrentPPOAgent(file_path='checkpoints/experiment_3/rl_model_120006_steps.zip')
 
     # Reward manager
     reward_manager = gen_reward_manager()
-    # Self-play settings. You can choose SelfPlayLatest (learns against the latest saved model) or SelfPlayRandom (learns against randomly-selected full list of previously saved models)
+    # Self-play settings
     selfplay_handler = SelfPlayRandom(
         partial(type(my_agent)), # Agent class and its keyword arguments
                                  # type(my_agent) = Agent class

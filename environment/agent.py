@@ -1083,6 +1083,7 @@ def run_real_time_match(agent_1: UserInputAgent, agent_2: Agent, max_timesteps=3
     #stage2 = env.objects["stage2"]
     background_image = pygame.image.load('environment/assets/map/bg.jpg').convert() 
     while running and timestep < max_timesteps:
+       
         # Pygame event to handle real-time user input 
        
         for event in pygame.event.get():

@@ -867,6 +867,10 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         self.knockout_signal = Signal(self)
         self.win_signal = Signal(self)
         self.hit_during_stun = Signal(self)
+        
+        #kaden
+        self.weapon_drop_signal = Signal(self)
+        self.weapon_equip_signal = Signal(self)
 
         # Observation Space
         self.observation_space = self.get_observation_space()
@@ -1059,7 +1063,6 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
             self.hammer_attacks[self.keys[name]] = move_data 
 
     def step(self, action: dict[int, np.ndarray]):
-        
         # Create new rewards dict
         self.cur_action = action
         self.rewards = {agent: 0 for agent in self.agents}
@@ -1078,7 +1081,6 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         for agent in self.agents:
             player = self.players[agent]
             player.pre_process()
-         
 
         # Process player step
         for agent in self.agents:
@@ -1108,6 +1110,8 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
         if hasattr(self, "weapon_controller"):
             self.weapon_controller.try_pick_up_all(self.players, self.steps)
             self.weapon_controller.update(self.steps)
+            
+           
 
         truncated = self.steps >= self.max_timesteps
 
@@ -1334,7 +1338,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
         self.weapon_pool = WeaponPool(self.weapon_images)
         self.weapon_spawners = []
- 
+        
         self.weapon_spawners.append(WeaponSpawner(self.camera, 0, self, self.weapon_pool, pos=[random.uniform(2.6,6.5), 0+0.7], cooldown_frames=random.randint(500,700), despawn_frames=350))
         self.weapon_spawners.append(WeaponSpawner(self.camera, 1, self, self.weapon_pool, pos=[-random.uniform(2.6,6.5), 2+0.7], cooldown_frames=random.randint(500,700), despawn_frames=350))
           
@@ -3123,13 +3127,13 @@ class AnimationSprite2D(GameObject):
             'unarmednsig_scissors': [1.6],
             'unarmedrecovery': [1.0],
             'unarmeddlight': [1.2],
-            'hammerslight': [2.3],
-            'hammernlight': [2.3],
-            'hammerdlight': [1.8],
-            'hammersair': [1.8],
-            'hammerdair': [1.8],
-            'hammernair': [2.1],
-            'hammergp': [2.1],
+            'hammerslight': [2.3/1.5],
+            'hammernlight': [2.3/1.5],
+            'hammerdlight': [1.8/1.5],
+            'hammersair': [1.8/1.5],
+            'hammerdair': [1.8/1.5],
+            'hammernair': [2.1/1.5],
+            'hammergp': [2.1/1.5],
         }
 
         self.color_mapping = {self.albert_palette[key]: self.kai_palette[key] for key in self.albert_palette}
@@ -4211,10 +4215,7 @@ class WeaponSpawner:
         if w is None: return False 
         if(player.weapon != "Punch"):
             return False
-        # --- get weapon center in WORLD units ---
-
-
-
+        
         #spear_img = pygame.Surface((40,16), pygame.SRCALPHA)
         #hitbox_size = Capsule.get_hitbox_size(290//2, 320//2)
         #self.hurtbox_collider = CapsuleCollider(center=(0, 0), width=hitbox_size[0], height=hitbox_size[1])
@@ -4243,8 +4244,9 @@ class WeaponSpawner:
         
         if not pressed or not collided: return False
         print(f'collided {w.name}, {pressed}, {collided}')
-        
-        player.weapon = w.name
+        player.weapon = w.name #kaden
+        player.env.weapon_equip_signal.emit(agent='player' if player.agent_id == 0 else 'opponent')#kaden
+
             # --- NEW: VFX pickup one-shot -> hidden
         if self.vfx:
             self.vfx.show_pickup()
@@ -4318,7 +4320,7 @@ class WeaponSpawner:
                 self.spawn_weapon(current_frame)
                 self.flag = False
 
-    def spawn_weapon(self, current_frame):#martin
+    def spawn_weapon(self, current_frame):
         y_pos = self.world_pos[1]
         if(y_pos == 0+0.7):
            x_pos = random.uniform(2.6, 6.5)
@@ -4523,7 +4525,8 @@ class DroppedWeaponSpawner(WeaponSpawner):
         if not pressed or not collided: return False
       
         print(f'pickup {w.name}, {pressed}, {collided}')
-        player.weapon = w.name
+        player.weapon = w.name #kaden
+        player.env.weapon_equip_signal.emit(agent='player' if player.agent_id == 0 else 'opponent')#kaden
             # --- NEW: VFX pickup one-shot -> hidden
         if self.vfx:
             self.vfx.show_pickup()
@@ -4598,7 +4601,7 @@ class DroppedWeaponSpawner(WeaponSpawner):
 
 
                     print(f"[FRAME {wb.steps}] Player {idx} dropped '{current_weapon}' spawner at {pos} (id {new_id}).")
-
+                    #kaden
                     # player loses weapon → back to Punch
                     player.weapon = "Punch"
                     player.attack_anims = {
@@ -4614,6 +4617,7 @@ class DroppedWeaponSpawner(WeaponSpawner):
                         MoveType.RECOVERY : ('alup', 'unarmedrecovery'),
                         MoveType.GROUNDPOUND : ('algroundpound', {16: ['unarmedgp', 'unarmedgp_held'], 17: 'unarmedgp_end', 18: 'unarmedgp_end', 19: 'unarmedgp_end'}),
                     }
+                    player.env.weapon_drop_signal.emit(agent='player' if player.agent_id == 0 else 'opponent')#kaden
                     
 
 # ### Hitbox and Hurtbox
