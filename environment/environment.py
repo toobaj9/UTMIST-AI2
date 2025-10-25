@@ -526,18 +526,7 @@ class RenderMode(Enum):
     RGB_ARRAY = 1
     PYGAME_WINDOW = 2
 
-class Camera():
-    background_image = pygame.image.load('environment/assets/map/martin.png')
-
-    scale_factor = 0.72
-    new_width = int(background_image.get_width() * scale_factor)
-    new_height = int(background_image.get_height() * scale_factor)
-
-    background_image = pygame.transform.scale(
-        background_image,
-        (new_width, new_height)
-    )
-
+class Camera():    
     screen_width_tiles: float = 29.8
     screen_height_tiles: float = 16.8
     pixels_per_tile: float = 43
@@ -546,6 +535,26 @@ class Camera():
     pos: list[int] = [0,0]
     zoom: float = 2.0
 
+    def scale_background(self, env, bg_image: pygame.image = pygame.image.load('environment/assets/map/background.png')) -> None:
+        resolution: Tuple[int] = env.resolution
+        window_height, window_width = self.resolutions[resolution]
+
+        # Calculate scale factors
+        width_scale = window_width / bg_image.get_width() 
+        height_scale = window_height / bg_image.get_height()
+
+        # use max scale factor for the ratio to ensure it fits the env
+        scale_factor = max(width_scale, height_scale)
+
+        # Calculate new dimensions  
+        new_width = int(bg_image.get_width() * scale_factor)
+        new_height = int(bg_image.get_height() * scale_factor)
+
+        # Assign new background img
+        self.background_image = pygame.transform.scale(
+            bg_image,
+            (new_width, new_height)
+        )
 
     def reset(self, env):
         self.space = env.space
@@ -1131,6 +1140,7 @@ class WarehouseBrawl(MalachiteEnv[np.ndarray, np.ndarray, int]):
 
         self.players: list[Player] = []
         self.camera.reset(self)
+        self.camera.scale_background(self)
         self._setup()
 
         return {agent: self.observe(agent) for agent in self.agents}, {}
