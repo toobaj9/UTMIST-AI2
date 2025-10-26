@@ -21,7 +21,7 @@ from environment.agent import Agent
 from stable_baselines3 import PPO, A2C # Sample RL Algo imports
 from sb3_contrib import RecurrentPPO # Importing an LSTM
 
-# To run the sample TTNN model, you can uncomment the line below: 
+# To run the sample TTNN model, you can uncomment the 2 lines below: 
 # import ttnn
 # from user.my_agent_tt import TTMLPPolicy
 
@@ -37,7 +37,7 @@ class SubmittedAgent(Agent):
         super().__init__(file_path)
 
         # To run a TTNN model, you must maintain a pointer to the device and can be done by 
-        # uncommmenting the line below
+        # uncommmenting the line below to use the device pointer
         # self.mesh_device = ttnn.open_mesh_device(ttnn.MeshShape(1,1))
 
     def _initialize(self) -> None:
