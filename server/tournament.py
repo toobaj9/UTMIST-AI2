@@ -57,7 +57,7 @@ class Participant:
         """
         self.competitor = competitor
 
-  class Match:
+class Match:
     """
     A match represents a single match in a tournament, between 2 participants.
     It adds empty participants as placeholders for the winner and loser,
