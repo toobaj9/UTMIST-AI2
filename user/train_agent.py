@@ -568,6 +568,9 @@ def gen_reward_manager():
 The main function runs training. You can change configurations such as the Agent type or opponent specifications here.
 '''
 if __name__ == '__main__':
+
+
+    '''
     # Create agent
     #my_agent = CustomAgent(sb3_class=PPO, extractor=MLPExtractor)
 
@@ -641,6 +644,7 @@ if __name__ == '__main__':
     
     # Start training
     train(my_agent,
+<<<<<<< Updated upstream
       reward_manager,
       save_handler,
       opponent_cfg,
@@ -648,3 +652,53 @@ if __name__ == '__main__':
       train_timesteps=1000,  # Train for 1M steps
       train_logging=TrainLogging.PLOT
     )
+=======
+        reward_manager,
+        save_handler,
+        opponent_cfg,
+        CameraResolution.LOW,
+        train_timesteps=1_000_000_000,
+        train_logging=TrainLogging.PLOT
+    )'''
+
+#selectig the agent SB3
+#new
+    # Create your agent (using PPO algorithm)
+    my_agent = SB3Agent(sb3_class=PPO)
+    
+    # Use the existing reward manager
+    reward_manager = gen_reward_manager() #defined above
+    
+    # Set up self-play for training
+    selfplay_handler = SelfPlayRandom(
+        partial(type(my_agent))
+    )
+    
+    # Configure where to save your trained models
+    save_handler = SaveHandler(
+        agent=my_agent,
+        save_freq=100_000,  # Save every 100k steps
+        max_saved=40,
+        save_path='checkpoints',
+        run_name='my_first_training',
+        mode=SaveHandlerMode.FORCE
+    )
+    
+    # Set up training opponents
+    opponent_specification = {
+        'self_play': (8, selfplay_handler),
+        'based_agent': (1.5, partial(BasedAgent)),
+    }
+    opponent_cfg = OpponentsCfg(opponents=opponent_specification)
+    
+    # Start training
+    train(my_agent,
+          reward_manager,
+          save_handler,
+          opponent_cfg,
+          CameraResolution.LOW,
+          train_timesteps= 1000,  #1_000_000,  # Train for 1M steps
+          train_logging=TrainLogging.PLOT
+    )
+
+>>>>>>> Stashed changes
