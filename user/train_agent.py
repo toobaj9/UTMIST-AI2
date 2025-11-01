@@ -858,7 +858,7 @@ def gen_reward_manager():
         #'taunt_reward': RewTerm(func=in_state_reward, weight=0.2, params={'desired_state': TauntState}),
         'jump_to_moving_platform': RewTerm(func=jump_to_moving_platform, weight=0.7),
         'idle_penalty': RewTerm(func=idle_penalty, weight=-0.2, params={'penalty_per_second': 0.5, 'velocity_threshold': 0.05}),
-        'move_to_opponent_reward': RewTerm(func=move_to_opponent_reward, weight= 0.5),
+        #'move_to_opponent_reward': RewTerm(func=move_to_opponent_reward, weight= 0.5),
         'jump_on_spear_throw': RewTerm(func=jump_on_spear_throw, weight= 1.0),
         'close_to_agent': RewTerm(func=close_to_agent, weight = 1.0)
 
@@ -914,7 +914,7 @@ if __name__ == '__main__':
       save_handler,
       opponent_cfg,
       CameraResolution.LOW,
-      train_timesteps=1000,  # Train for 1M steps
+      train_timesteps=1000000,  # Train for 1M steps
       train_logging=TrainLogging.PLOT
     )
     
