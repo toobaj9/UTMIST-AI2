@@ -41,6 +41,8 @@ jobs:
 
       # Step 2: Install dependencies
       - name: Install dependencies
+        env:
+          TT_ENV_PATH: /home/ambrose/TT/tt-metal
         run: |
           chmod +x install_tt.sh
           ./install_tt.sh
