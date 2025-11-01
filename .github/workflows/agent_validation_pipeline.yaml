@@ -128,8 +128,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/submission
           USERNAME: ${{ github.event.inputs.username }}
         run: |
-          export PYTHONPATH=$(pwd)
-          pytest -s user/validate.py
+          PYTHONPATH=$(pwd) python user/validate.py
 
       # === Step 4: Upload results as an artifact ===
       - name: Upload Results
