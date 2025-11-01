@@ -59,7 +59,7 @@ jobs:
       - name: Run validation
         working-directory: submission
         env:
-          PYTHONPATH: ${{ github.workspace }}/submission
+          PYTHONPATH: ${{ github.workspace }}/submission:${{ github.workspace }}
           USERNAME: ${{ github.event.inputs.username }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
