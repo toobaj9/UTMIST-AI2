@@ -537,20 +537,185 @@ def on_combo_reward(env: WarehouseBrawl, agent: str) -> float:
         return -1.0
     else:
         return 1.0
+#___________________________________________________________
+#writing new reward functions
+def move_to_opponent_reward(
+    env: WarehouseBrawl,
+) -> float:
+    """
+    Computes the reward based on whether the agent is moving toward the opponent.
+    The reward is calculated by taking the dot product of the agent's normalized velocity
+    with the normalized direction vector toward the opponent.
+
+    Args:
+        env (WarehouseBrawl): The game environment
+
+    Returns:
+        float: The computed reward
+    """
+    # Getting agent and opponent from the enviornment
+    player: Player = env.objects["player"]
+    opponent: Player = env.objects["opponent"]
+
+    # Extracting player velocity and position from environment
+    player_position_dif = np.array([player.body.position.x_change, player.body.position.y_change])
+
+    direction_to_opponent = np.array([opponent.body.position.x - player.body.position.x,
+                                      opponent.body.position.y - player.body.position.y])
+
+    # Prevent division by zero or extremely small values
+    direc_to_opp_norm = np.linalg.norm(direction_to_opponent)
+    player_pos_dif_norm = np.linalg.norm(player_position_dif)
+
+    if direc_to_opp_norm < 1e-6 or player_pos_dif_norm < 1e-6:
+        return 0.0
+
+    # Compute the dot product of the normalized vectors to figure out how much
+    # current movement (aka velocity) is in alignment with the direction they need to go in
+    reward = np.dot(player_position_dif / direc_to_opp_norm, direction_to_opponent / direc_to_opp_norm)
+
+    return reward
+#_________________________________________________________________
+def edge_guard_reward(
+    env: WarehouseBrawl,
+    mode: RewardMode= RewardMode.SYMMETRIC,
+) -> float:
+
+    """
+    Computes the reward given for every time step your agent is edge guarding the opponent.
+
+    Args:
+        env (WarehouseBrawl): The game environment
+        success_value (float): Reward value for the player hitting first
+        fail_value (float): Penalty for the opponent hitting first
+
+    Returns:
+        float: The computed reward.
+    """
+    #reward = 0.0
+    #when the agent is close to x = -3 to x = -2 then there's reward
+    #the agent, while being in x= -3 and x=-2 attacks the opponent
+    #-------------------------------------------------
+    #getting player and opponent
+    player : Player = env.objects["player"]
+    opponent: Player = env.objects["opponent"]
+
+    #SITUATION 1 when the player is on ground 1 and opponent is on ground 2
+    #check if opponent is in the zone x=0 and x=-2
+    opponent_in_zone_1 = -2 <= opponent.body.position.x <= 0
+    #check is player is close to the edge, to guard, between x=-3 and x=-2
+    player_in_position_1  = -3 <=player.body.position.x <= -2
+
+    #SITUATION 2 when the player is on ground 2 and opponent is on ground 1
+    #check if opponent is in the zone x=0 to x=2
+    opponent_in_zone_2 = 0 <= opponent.body.position.x <= 2
+    #check si player is close to the edge of ground 2, between x=2 and x=3
+    player_in_position_2 = 2 <= player.body.position.x <= 3
+
+    #if these conditions are met, then my agent should be in offensive mode
+    if opponent_in_zone_1 and player_in_position_1:
+        # Use the damage interaction reward logic for offensive behavior
+        damage_taken = player.damage_taken_this_frame
+        damage_dealt = opponent.damage_taken_this_frame
+        if mode == RewardMode.ASYMMETRIC_OFFENSIVE:
+            reward = damage_dealt
+        elif mode == RewardMode.SYMMETRIC:
+            reward = damage_dealt - damage_taken
+        elif mode == RewardMode.ASYMMETRIC_DEFENSIVE:
+            reward = -damage_taken
+        else:
+            raise ValueError(f"Invalid mode: {mode}")
+            
+        # Add extra reward for maintaining the defensive position
+        position_reward = 0.5
+        return (reward / 140) + position_reward
+    
+    elif opponent_in_zone_2 and player_in_position_2:
+        # Use the damage interaction reward logic for offensive behavior
+        damage_taken = player.damage_taken_this_frame
+        damage_dealt = opponent.damage_taken_this_frame
+        if mode == RewardMode.ASYMMETRIC_OFFENSIVE:
+            reward = damage_dealt
+        elif mode == RewardMode.SYMMETRIC:
+            reward = damage_dealt - damage_taken 
+        elif mode==RewardMode.ASYMMETRIC_DEFENSIVE:
+            reward = -damage_taken
+        else:
+            raise ValueError(f"Invalid mode: {mode} ")
+        #add extra reward for maintaining the defensive position
+        position_reward = 0.5
+        return (reward/140) + position_reward
+
+    
+    return 0.0
+#____________________________________________________________
+#function that when opponent throws spear, agent should jump
+def jump_on_spear_throw(env: WarehouseBrawl, agent: str = 'player') -> float:
+    """
+    Rewards the agent for jumping when the opponent throws a spear. Gives a reward when:
+    1. Opponent has a spear and presses H to throw it
+    2. Agent is jumping at that moment
+
+    Args:
+        env (WarehouseBrawl): The game environment
+        agent (str): Either 'player' or 'opponent' to identify which agent we're rewarding
+
+    Returns:
+        float: The computed reward
+    """
+    player = env.objects["player"]
+    opponent = env.objects["opponent"]
+
+    # Only reward if opponent is throwing spear (weapon is Spear and pressing H key)
+    if opponent.weapon == "Spear" and opponent.input.key_status['h'].just_pressed:
+        # Check if agent is jumping (in air + upward velocity)
+        if isinstance(player.state, InAirState) and player.body.velocity.y < 0:
+            return 1.5  # Reward for jumping during spear throw
+    
+    return 0.0  # No reward otherwise
+#________________________________________________________________________
+#reward function for using hammer when close to the opponent (offense), opponent is 1 unit close to the agent.
+def close_to_agent(env: WarehouseBrawl,)-> float:
+    '''
+    Attacks using a hammer whenever the opponent is 1 unit close to the agent
+    '''
+    #getting player and opponent
+    player : Player = env.objects["player"]
+    opponent: Player = env.objects["opponent"]
+
+    #check if the agent has hammer
+    if getattr(player, "weapon", None) != "Hammer":
+        return 0.0
+    if abs(player.body.position.x - opponent.body.position.x) <= 1:
+        #check is attack key was pressed
+        if player.input.key_status.get('j', None) and player.input.key_status['j'].just_pressed:
+            return 1.0
+        if player.input.key_status.get('k', None) and player.input.key_status['k'].just_pressed:
+            return 1.0
+    return 0.0
+#_______________________________________________________________________________________
+
 
 '''
 Add your dictionary of RewardFunctions here using RewTerms
 '''
 def gen_reward_manager():
     reward_functions = {
-        #'target_height_reward': RewTerm(func=base_height_l2, weight=0.0, params={'target_height': -4, 'obj_name': 'player'}),
+        'target_height_reward': RewTerm(func=base_height_l2, weight=-0.04, params={'target_height': -4, 'obj_name': 'player'}),
+        #^^ since -4 would be way above the opponent, so going far from opponent is discouraged so -0.04 weight
+
         'danger_zone_reward': RewTerm(func=danger_zone_reward, weight=0.5),
-        'damage_interaction_reward': RewTerm(func=damage_interaction_reward, weight=1.0),
-        #'head_to_middle_reward': RewTerm(func=head_to_middle_reward, weight=0.01),
-        #'head_to_opponent': RewTerm(func=head_to_opponent, weight=0.05),
+        'damage_interaction_reward': RewTerm(func=damage_interaction_reward, weight=2.0),
+        'head_to_middle_reward': RewTerm(func=head_to_middle_reward, weight=0.02), #encourages to stay away from edges and stay in middle
+        'head_to_opponent': RewTerm(func=head_to_opponent, weight=0.08), 
         'penalize_attack_reward': RewTerm(func=in_state_reward, weight=-0.04, params={'desired_state': AttackState}),
         'holding_more_than_3_keys': RewTerm(func=holding_more_than_3_keys, weight=-0.01),
         #'taunt_reward': RewTerm(func=in_state_reward, weight=0.2, params={'desired_state': TauntState}),
+        'move_to_opponent_reward': RewTerm(func=move_to_opponent_reward, weight= 0.5),
+        'edge_guard_reward': RewTerm(func=edge_guard_reward, weight = 1.7 ),
+        'jump_on_spear_throw': RewTerm(func=jump_on_spear_throw, weight= 1.0),
+        'close_to_agent': RewTerm(func=close_to_agent, weight = 1.0)
+
     }
     signal_subscriptions = {
         'on_win_reward': ('win_signal', RewTerm(func=on_win_reward, weight=50)),
@@ -569,8 +734,45 @@ The main function runs training. You can change configurations such as the Agent
 '''
 if __name__ == '__main__':
 
+    # Create your agent (using PPO algorithm)
+    my_agent = SB3Agent(sb3_class=PPO)
+    
+    # Use the existing reward manager
+    reward_manager = gen_reward_manager() #defined above
+    
+    # Set up self-play for training
+    selfplay_handler = SelfPlayRandom(
+        partial(type(my_agent))
+    )
+    
+    # Configure where to save your trained models
+    save_handler = SaveHandler(
+        agent=my_agent,
+        save_freq=100_000,  # Save every 100k steps
+        max_saved=40,
+        save_path='checkpoints',
+        run_name='my_first_training',
+        mode=SaveHandlerMode.FORCE
+    )
+ # Set up training opponents
+    opponent_specification = {
+        'self_play': (8, selfplay_handler),
+        'based_agent': (1.5, partial(BasedAgent)),
+    }
+    opponent_cfg = OpponentsCfg(opponents=opponent_specification)
+    
+    # Start training
+    train(my_agent,
+      reward_manager,
+      save_handler,
+      opponent_cfg,
+      CameraResolution.LOW,
+      train_timesteps=1000,  # Train for 1M steps
+      train_logging=TrainLogging.PLOT
+    )
 
-    '''
+
+    
     # Create agent
     #my_agent = CustomAgent(sb3_class=PPO, extractor=MLPExtractor)
 
@@ -614,91 +816,3 @@ if __name__ == '__main__':
         #train_timesteps=1_000_000_000,
         #train_logging=TrainLogging.PLOT
     #)
-    
-    # Create your agent (using PPO algorithm)
-    my_agent = SB3Agent(sb3_class=PPO)
-    
-    # Use the existing reward manager
-    reward_manager = gen_reward_manager() #defined above
-    
-    # Set up self-play for training
-    selfplay_handler = SelfPlayRandom(
-        partial(type(my_agent))
-    )
-    
-    # Configure where to save your trained models
-    save_handler = SaveHandler(
-        agent=my_agent,
-        save_freq=100_000,  # Save every 100k steps
-        max_saved=40,
-        save_path='checkpoints',
-        run_name='my_first_training',
-        mode=SaveHandlerMode.FORCE
-    )
- # Set up training opponents
-    opponent_specification = {
-        'self_play': (8, selfplay_handler),
-        'based_agent': (1.5, partial(BasedAgent)),
-    }
-    opponent_cfg = OpponentsCfg(opponents=opponent_specification)
-    
-    # Start training
-    train(my_agent,
-<<<<<<< Updated upstream
-      reward_manager,
-      save_handler,
-      opponent_cfg,
-      CameraResolution.LOW,
-      train_timesteps=1000,  # Train for 1M steps
-      train_logging=TrainLogging.PLOT
-    )
-=======
-        reward_manager,
-        save_handler,
-        opponent_cfg,
-        CameraResolution.LOW,
-        train_timesteps=1_000_000_000,
-        train_logging=TrainLogging.PLOT
-    )'''
-
-#selectig the agent SB3
-#new
-    # Create your agent (using PPO algorithm)
-    my_agent = SB3Agent(sb3_class=PPO)
-    
-    # Use the existing reward manager
-    reward_manager = gen_reward_manager() #defined above
-    
-    # Set up self-play for training
-    selfplay_handler = SelfPlayRandom(
-        partial(type(my_agent))
-    )
-    
-    # Configure where to save your trained models
-    save_handler = SaveHandler(
-        agent=my_agent,
-        save_freq=100_000,  # Save every 100k steps
-        max_saved=40,
-        save_path='checkpoints',
-        run_name='my_first_training',
-        mode=SaveHandlerMode.FORCE
-    )
-    
-    # Set up training opponents
-    opponent_specification = {
-        'self_play': (8, selfplay_handler),
-        'based_agent': (1.5, partial(BasedAgent)),
-    }
-    opponent_cfg = OpponentsCfg(opponents=opponent_specification)
-    
-    # Start training
-    train(my_agent,
-          reward_manager,
-          save_handler,
-          opponent_cfg,
-          CameraResolution.LOW,
-          train_timesteps= 1000,  #1_000_000,  # Train for 1M steps
-          train_logging=TrainLogging.PLOT
-    )
-
->>>>>>> Stashed changes
