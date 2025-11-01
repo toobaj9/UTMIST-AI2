@@ -27,8 +27,6 @@ jobs:
     needs: check-inputs
     container:
       image: python:3.10
-      volumes:
-        - /home/ambrose/TT/tt-metal:/home/ambrose/TT/tt-metal
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -41,8 +39,6 @@ jobs:
 
       # Step 2: Install dependencies
       - name: Install dependencies
-        env:
-          TT_ENV_PATH: /home/ambrose/TT/tt-metal
         run: |
           chmod +x install_tt.sh
           ./install_tt.sh
@@ -95,12 +91,8 @@ jobs:
         env:
           AGENT1_PATH: agents/${{ github.event.inputs.username1 }}/my_agent.py
           AGENT2_PATH: agents/${{ github.event.inputs.username2 }}/my_agent.py
-          TT_ENV_PATH: /home/ambrose/TT/tt-metal
-          TT_METAL_HOME: /home/ambrose/TT/tt-metal
-          TT_METAL_RUNTIME_ROOT: /home/ambrose/TT/tt-metal
         run: |
           echo "Running battle between:"
           echo "Agent 1: $AGENT1_PATH"
           echo "Agent 2: $AGENT2_PATH"
-          source "$TT_ENV_PATH/python_env/bin/activate"
           python3 -m pytest -s user/battle.py 
