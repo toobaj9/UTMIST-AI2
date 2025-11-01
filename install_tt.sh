@@ -30,14 +30,6 @@ apt-get update && apt-get install -y \
     libapt-pkg-dev \
     build-essential
 
-if [ -z "$TT_ENV_PATH" ]; then
-    echo "❌ TT_ENV_PATH not set. Please set it as a GitHub Actions secret."
-    exit 1
-fi
-
-echo "Activating virtual environment at $TT_ENV_PATH ..."
-source "$TT_ENV_PATH/python_env/bin/activate"
-
 # ----------------------------
 # Upgrade pip and install gdown if missing
 # ----------------------------
@@ -82,5 +74,7 @@ if [ -f requirements.txt ]; then
 else
     echo "No requirements.txt found. Skipping Python dependency installation."
 fi
+
+python -m pip install ttnn
 
 echo "✅ Installation complete."
