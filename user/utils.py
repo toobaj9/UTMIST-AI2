@@ -1,6 +1,7 @@
 import os
 from typing import Optional
 from supabase import create_client
+from datetime import datetime
 
 def elo_update(elo1, elo2, result, k=32):
     """
@@ -84,4 +85,7 @@ def upload_video_to_supabase(video_path, agent1_username, agent2_username):
             video_data,
             file_options={"content-type": "video/mp4"},
         )
+    # INSERT_YOUR_CODE
+    public_url = client.storage.from_(bucket_name).get_public_url(dest_path)
+    print(f"Video uploaded. Public URL: {public_url}")
     return response
