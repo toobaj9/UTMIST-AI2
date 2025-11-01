@@ -493,6 +493,186 @@ def head_to_opponent(
 
     return reward
 
+def off_ground_penalty(
+    env: WarehouseBrawl,
+    boundary: float = 7,
+    penalty: float = 1.0
+) -> float:
+    """Penalize being too close to screen edges."""
+    player: Player = env.objects["player"]
+    x_pos = player.body.position.x
+    y_pos = player.body.position.y
+    # Penalty increases as you get closer to edge
+    if x_pos < -boundary * 0.9:
+        return -penalty * (-boundary*0.9 - x_pos) * env.dt
+    if (x_pos > -2 and y_pos > 0 and y_pos < 2.85) :  # Start penalty at 80% of max width
+        return -penalty * (x_pos - (-2)) * env.dt
+    if x_pos > boundary * 0.9:
+        return -penalty * (x_pos - boundary*0.9) * env.dt
+    if (x_pos < 2 and y_pos > 0 and y_pos < 2.85) :  # Start penalty at 80% of max width
+        return -penalty * (2 - x_pos) * env.dt
+    return 0.0
+
+
+# TODO: This reward function has not been written and is left as an exercise to try and implement
+#       yourself. Think about the following before implementing:
+#
+#       - While having a stock lead is generally good in fighting games,
+#         how would this reward influence agent behaviour?
+#       - Is this behaviour even desirable?
+#       - Is this behaviour more valuable near the beggingin or end of the match,
+#         and based on that answer how can you change the reward so it considers time?
+
+
+def stock_advantage_reward(
+    env: WarehouseBrawl,
+    success_value: float = 0.5, #TODO
+    mode: RewardMode = RewardMode.SYMMETRIC,
+) -> float:
+
+    """
+    Computes the reward given for every time step your agent is edge guarding the opponent.
+
+    Args:
+        env (WarehouseBrawl): The game environment
+        success_value (float): Reward value related to having/gaining a weapon (however you define it)
+    Returns:
+        float: The computed reward.
+    """
+    reward = 0.0
+    # TODO: Write the function
+    player: Player = env.objects["player"]
+    opponent: Player = env.objects["opponent"]
+    player_stocks = player.stocks
+    opponent_stocks = opponent.stocks
+    stock_diff = player_stocks - opponent_stocks
+    damage_taken = env.objects["player"].damage_taken_this_stock
+    damage_dealt = env.objects["opponent"].damage_taken_this_stock
+    risk_factor = player.damage_taken_this_stock * 0.001 * env.dt
+    if stock_diff > 0 and player_stocks > 0 and opponent_stocks > 0:
+        if mode == RewardMode.ASYMMETRIC_OFFENSIVE:
+            reward = damage_dealt * 1.5
+        elif mode == RewardMode.SYMMETRIC:
+            reward = damage_dealt - damage_taken
+        elif mode == RewardMode.ASYMMETRIC_DEFENSIVE:
+            reward = (stock_diff * success_value * env.dt) - (damage_taken * 2.0) - risk_factor
+        else:
+            raise ValueError(f"Invalid mode: {mode}")
+    elif stock_diff < 0 and player_stocks > 0 and opponent_stocks > 0:
+        if mode == RewardMode.ASYMMETRIC_OFFENSIVE:
+            reward = damage_dealt * 2.0
+        elif mode == RewardMode.SYMMETRIC:
+            reward = damage_dealt - damage_taken
+        elif mode == RewardMode.ASYMMETRIC_DEFENSIVE:
+            opponent_vulnerability = opponent.damage_taken_this_stock * 0.001 * env.dt
+            reward = (-abs(stock_diff) * success_value * env.dt) - (damage_taken * 1.5) + opponent_vulnerability
+        else:
+            raise ValueError(f"Invalid mode: {mode}")
+    return reward
+
+def jump_to_moving_platform(
+    env: WarehouseBrawl,
+    bonus: float = 1.0,
+    mode: RewardMode = RewardMode.SYMMETRIC,
+) -> float:
+    reward = 0.0
+    player: Player = env.objects["player"]
+    opponent: Player = env.objects["opponent"]
+    platform = env.objects["platform1"]
+    x, y = player.body.position.x, player.body.position.y
+    px, py = platform.body.position.x, platform.body.position.y
+    ox, oy = opponent.body.position.x, opponent.body.position.y
+
+    platform_safe = not (px - 1.0 <= ox <= px + 1.0 and py - 0.2 <= oy <= py + 0.05)
+    player_above_platform = (px - 1.0 <= x <= px + 1.0) and (py - 0.2 <= y <= py + 0.05)
+
+
+    # Check if player is standing roughly above the platform
+    if player_above_platform and platform_safe:
+        reward += bonus * env.dt
+    opponent_close = abs(ox - x) < 1.5 and abs(oy - y) < 1.5
+
+    if opponent_close and player_above_platform and platform_safe:
+        reward += 0.5 * env.dt
+    if player_above_platform and not platform_safe and opponent_close:
+        reward -= 0.5 * env.dt
+    if player_above_platform and not platform_safe and not opponent_close:
+        reward -= 0.2 * env.dt
+    if player_above_platform and platform_safe and not opponent_close:
+        reward -= 0.1 * env.dt
+    return reward
+
+
+def edge_guard_reward(
+    env: WarehouseBrawl,
+    mode: RewardMode = RewardMode.SYMMETRIC,
+) -> float:
+    """
+    Computes reward for edge-guarding behavior. Encourages the agent to position 
+    itself defensively when opponent is near the edge.
+    """
+    # Getting player and opponent from the environment
+    player: Player = env.objects["player"]
+    opponent: Player = env.objects["opponent"]
+    
+    # Check if opponent is in the target zone (between x=0 and x=-2)
+    opponent_in_zone = (-2 <= opponent.body.position.x <= 0) or (2 <= opponent.body.position.x <= 3)
+    
+    # Check if player is in the defensive position (between x=-3 and x=-2)
+    player_in_position = (-3 <= player.body.position.x <= -2) or (3 <= player.body.position.x <= 4)
+    
+    # If both conditions are met, encourage offensive behavior
+    if opponent_in_zone and player_in_position:
+        # Use the damage interaction reward logic for offensive behavior
+        damage_taken = player.damage_taken_this_frame
+        damage_dealt = opponent.damage_taken_this_frame
+        if mode == RewardMode.ASYMMETRIC_OFFENSIVE:
+            reward = damage_dealt
+        elif mode == RewardMode.SYMMETRIC:
+            reward = damage_dealt - damage_taken
+        elif mode == RewardMode.ASYMMETRIC_DEFENSIVE:
+            reward = -damage_taken
+        else:
+            raise ValueError(f"Invalid mode: {mode}")
+            
+        # Add extra reward for maintaining the defensive position
+        position_reward = 0.5
+        return (reward / 140) + position_reward
+    return 0.0
+
+def idle_penalty(
+    env: WarehouseBrawl,
+    penalty_per_second: float = 0.5,
+    velocity_threshold: float = 0.05
+) -> float:
+    # Get player object from the environment
+    player: Player = env.objects["player"]
+    opponent: Player = env.objects["opponent"]
+  
+    vx = player.body.velocity.x
+    vy = player.body.velocity.y
+    
+    speed = np.sqrt(vx**2 + vy**2)
+    
+    is_idling = (speed < velocity_threshold)
+    
+    reward = 0.0
+
+    if is_idling:
+        reward -= penalty_per_second * env.dt
+        distance_to_opponent = np.sqrt(
+            (player.body.position.x - opponent.body.position.x)**2 + 
+            (player.body.position.y - opponent.body.position.y)**2 
+        )
+        
+        # If the player is idling AND the opponent is far away (e.g., more than half the arena)
+        WIDTH = 14.9 
+        if distance_to_opponent > (WIDTH / 2.5):
+            # Apply a heavier penalty for wasting time while separated
+            reward -= penalty_per_second * 1.5 * env.dt
+            
+    return reward
+
 def holding_more_than_3_keys(
     env: WarehouseBrawl,
 ) -> float:
@@ -543,14 +723,19 @@ Add your dictionary of RewardFunctions here using RewTerms
 '''
 def gen_reward_manager():
     reward_functions = {
-        #'target_height_reward': RewTerm(func=base_height_l2, weight=0.0, params={'target_height': -4, 'obj_name': 'player'}),
-        'danger_zone_reward': RewTerm(func=danger_zone_reward, weight=0.5),
-        'damage_interaction_reward': RewTerm(func=damage_interaction_reward, weight=1.0),
-        #'head_to_middle_reward': RewTerm(func=head_to_middle_reward, weight=0.01),
-        #'head_to_opponent': RewTerm(func=head_to_opponent, weight=0.05),
+        'target_height_reward': RewTerm(func=base_height_l2, weight=0.04, params={'target_height': -4, 'obj_name': 'player'}),
+        'danger_zone_reward': RewTerm(func=danger_zone_reward, weight=1.0),
+        'damage_interaction_reward': RewTerm(func=damage_interaction_reward, weight=2.0),
+        'head_to_middle_reward': RewTerm(func=head_to_middle_reward, weight=0.01),
+        'head_to_opponent': RewTerm(func=head_to_opponent, weight=1.0),
         'penalize_attack_reward': RewTerm(func=in_state_reward, weight=-0.04, params={'desired_state': AttackState}),
         'holding_more_than_3_keys': RewTerm(func=holding_more_than_3_keys, weight=-0.01),
+        'edge_guarding_reward': RewTerm(func=edge_guard_reward, weight=1.0),
+        'stock_advantage_reward': RewTerm(func=stock_advantage_reward, weight=1.5),
+        'off_ground_penalty': RewTerm(func=off_ground_penalty, weight=0.5, params={'boundary': 7, 'penalty': 1.0}),
         #'taunt_reward': RewTerm(func=in_state_reward, weight=0.2, params={'desired_state': TauntState}),
+        'jump_to_moving_platform': RewTerm(func=jump_to_moving_platform, weight=0.7),
+        'idle_penalty': RewTerm(func=idle_penalty, weight=-0.2, params={'penalty_per_second': 0.5, 'velocity_threshold': 0.05}),
     }
     signal_subscriptions = {
         'on_win_reward': ('win_signal', RewTerm(func=on_win_reward, weight=50)),
@@ -615,7 +800,7 @@ if __name__ == '__main__':
         #train_logging=TrainLogging.PLOT
     #)
     
-    # Create your agent (using PPO algorithm)
+    #Create your agent (using PPO algorithm)
     my_agent = SB3Agent(sb3_class=PPO)
     
     # Use the existing reward manager
@@ -648,7 +833,6 @@ if __name__ == '__main__':
       save_handler,
       opponent_cfg,
       CameraResolution.LOW,
-      train_timesteps=1000,  # Train for 1M steps
+      train_timesteps=1_000_000,  # Train for 1M steps
       train_logging=TrainLogging.PLOT
     )
-    
