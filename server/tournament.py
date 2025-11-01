@@ -34,6 +34,10 @@ Date: 2025-05-25
 """
 
 
+import math
+import itertools
+
+
 class Participant:
 
     def __init__(self, competitor=None):
