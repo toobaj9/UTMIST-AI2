@@ -27,8 +27,8 @@ jobs:
     needs: check-inputs
     container:
       image: python:3.10
-    volumes:
-      - /home/ambrose/TT/tt-metal:/home/ambrose/TT/tt-metal
+      volumes:
+        - /home/ambrose/TT/tt-metal:/home/ambrose/TT/tt-metal
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
