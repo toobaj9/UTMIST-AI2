@@ -47,4 +47,41 @@ def update_participant_elo(username: str, elo: int, match_result: Optional[str] 
     if hasattr(resp, "error") and resp.error:
         # supabase-py may return error object/message
         raise RuntimeError(str(resp.error))
-     
+    
+def upload_video_to_supabase(video_path, agent1_username, agent2_username):
+    """
+    Uploads the video at video_path to the 'battle-videos' bucket in Supabase Storage,
+    under the folder '{agent1_username}_vs_{agent2_username}/battle.mp4'.
+    Requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env variables set.
+    """
+    import os
+
+    try:
+        from supabase import create_client, Client
+    except ImportError:
+        raise ImportError("You must install supabase-py to use this feature: pip install supabase")
+
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not supabase_url or not supabase_key:
+        raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in environment variables.")
+
+    client: Client = create_client(supabase_url, supabase_key)
+    time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    bucket_name = "AI2-battles"
+    dest_path = f"{agent1_username}_vs_{agent2_username}_{time}_battle.mp4"
+
+    with open(video_path, "rb") as video_file:
+        video_data = video_file.read()
+        # Remove existing file if it exists
+        try:
+            client.storage.from_(bucket_name).remove([dest_path])
+        except Exception:
+            pass  # Ignore if file does not exist
+
+        response = client.storage.from_(bucket_name).upload(
+            dest_path,
+            video_data,
+            file_options={"content-type": "video/mp4"},
+        )
+    return response
