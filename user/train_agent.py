@@ -882,8 +882,8 @@ The main function runs training. You can change configurations such as the Agent
 if __name__ == '__main__':
 
     # Create your agent (using PPO algorithm)
-    my_agent = SB3Agent(sb3_class=PPO)
-    
+    #my_agent = SB3Agent(sb3_class=PPO)
+    my_agent = SB3Agent(sb3_class=PPO, file_path='checkpoints/my_first_training/rl_model_4017600_steps.zip')
     # Use the existing reward manager
     reward_manager = gen_reward_manager() #defined above
     
@@ -899,7 +899,7 @@ if __name__ == '__main__':
         max_saved=40,
         save_path='checkpoints',
         run_name='my_first_training',
-        mode=SaveHandlerMode.FORCE
+        mode=SaveHandlerMode.RESUME
     )
  # Set up training opponents
     opponent_specification = {
