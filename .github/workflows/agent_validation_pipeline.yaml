@@ -74,6 +74,8 @@ jobs:
           echo "PWD=$(pwd)"
           echo "Listing validate target:"
           ls -la user/validate.py || true
+          echo "Removing rl-model.zip if it exists"
+          rm -f rl-model.zip
           echo "Isolating PYTHONPATH to submission only"
           export PYTHONPATH="$(pwd)"
           python - <<'PY'
