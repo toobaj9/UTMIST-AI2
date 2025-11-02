@@ -103,7 +103,7 @@ jobs:
     name: Validate Agent and Submit (Ubuntu)
     runs-on: ubuntu-latest
     container:
-      image: python:3.10
+      image: python:3.12
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
